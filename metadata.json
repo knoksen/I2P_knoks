@@ -1,0 +1,6 @@
+{
+  "name": "I2P Browser",
+  "description": "Access the darkweb via simulated I2P garlic routing and exchange end-to-end encrypted messages with cryptographic keys.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

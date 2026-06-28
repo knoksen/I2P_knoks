@@ -1,0 +1,2781 @@
+package com.example.ui
+
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.painterResource
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import com.example.data.*
+import com.example.ui.theme.*
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
+
+@Composable
+fun RouterScreen(
+    viewModel: I2PViewModel,
+    modifier: Modifier = Modifier
+) {
+    val state by viewModel.routerState.collectAsState()
+    val logs by viewModel.logs.collectAsState()
+    val scope = rememberCoroutineScope()
+
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .background(CyberBlack)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                border = BorderStroke(1.dp, CyberBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                "GARLIC ROUTER STATUS",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = CyberBlue,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                if (state.isConnected) "ACTIVE & ROUTING" else if (state.isConnecting) "BUILDING TUNNELS" else "OFFLINE",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = if (state.isConnected) CyberGreen else if (state.isConnecting) CyberOrange else CyberRed,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                        Switch(
+                            checked = state.isConnected,
+                            onCheckedChange = { checked ->
+                                if (checked) viewModel.connectRouter() else viewModel.disconnectRouter()
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = CyberBlack,
+                                checkedTrackColor = CyberGreen,
+                                uncheckedThumbColor = TextSecondary,
+                                uncheckedTrackColor = CyberCardBg
+                            ),
+                            modifier = Modifier.testTag("router_toggle_switch")
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        state.statusText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextPrimary
+                    )
+
+                    if (state.isConnecting) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        LinearProgressIndicator(
+                            progress = { state.connectionProgress },
+                            color = CyberOrange,
+                            trackColor = CyberBorder,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                        )
+                    } else if (state.isConnected) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        LinearProgressIndicator(
+                            progress = { 1.0f },
+                            color = CyberGreen,
+                            trackColor = CyberBorder,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                        )
+                    }
+                }
+            }
+        }
+
+        // Tunnel Configuration
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                border = BorderStroke(1.dp, CyberBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "GARLIC ENCRYPTION PATH & HOPS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyberBlue,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        listOf(1, 3, 5).forEach { hops ->
+                            val isSelected = state.tunnelHops == hops
+                            OutlinedButton(
+                                onClick = { viewModel.setTunnelHops(hops) },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (isSelected) CyberGreen.copy(alpha = 0.15f) else Color.Transparent,
+                                    contentColor = if (isSelected) CyberGreen else TextPrimary
+                                ),
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = if (isSelected) CyberGreen else CyberBorder
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("hops_button_$hops")
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        "$hops Hop${if (hops > 1) "s" else ""}",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        when (hops) {
+                                            1 -> "Low Privacy"
+                                            3 -> "Standard I2P"
+                                            else -> "High Latency"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isSelected) CyberGreen else TextSecondary
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        "Each hop encapsulates packets in multiple layers of asymmetric encryption. Higher hops increase onion-routing garlic protection against network node correlations.",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextSecondary
+                    )
+                }
+            }
+        }
+
+        // Live Garlic Routing Path Simulation Dashboard
+        item {
+            GarlicRoutingPathVisualizer(
+                tunnelHops = state.tunnelHops,
+                isConnected = state.isConnected,
+                isConnecting = state.isConnecting
+            )
+        }
+
+        // Telemetry Statistics
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                border = BorderStroke(1.dp, CyberBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "ROUTER NETWORK TELEMETRY",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyberBlue,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TelemetryItem(
+                            label = "ACTIVE TUNNELS",
+                            value = "${state.activeTunnels}",
+                            icon = Icons.Default.Cyclone,
+                            color = CyberBlue
+                        )
+                        TelemetryItem(
+                            label = "PEERS IN NETDB",
+                            value = "${state.knownPeers}",
+                            icon = Icons.Default.Groups,
+                            color = CyberPurple
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Divider(color = CyberBorder)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TelemetryItem(
+                            label = "BANDWIDTH IN",
+                            value = String.format("%.1f KB/s", state.bandwidthInKbps),
+                            icon = Icons.Default.ArrowDownward,
+                            color = CyberGreen
+                        )
+                        TelemetryItem(
+                            label = "BANDWIDTH OUT",
+                            value = String.format("%.1f KB/s", state.bandwidthOutKbps),
+                            icon = Icons.Default.ArrowUpward,
+                            color = CyberOrange
+                        )
+                    }
+                }
+            }
+        }
+
+        // Global Peer Discovery System
+        item {
+            PeerDiscoverySection(viewModel = viewModel)
+        }
+
+        // Router Console Logs
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "ROUTER CONSOLE ACTIVITY LOGS",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+                TextButton(
+                    onClick = { viewModel.clearRouterLogs() },
+                    colors = ButtonDefaults.textButtonColors(contentColor = CyberRed)
+                ) {
+                    Icon(Icons.Default.DeleteSweep, contentDescription = "Clear Logs", modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Wipe", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+
+        if (logs.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Console is empty. Enable router to trace garlic connections.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            items(logs, key = { it.id }) { log ->
+                LogItemRow(log = log)
+            }
+        }
+    }
+}
+
+@Composable
+fun TelemetryItem(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    color: Color
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(32.dp))
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+            Text(value, style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun LogItemRow(log: LogEntry) {
+    val formatter = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+    val timeStr = formatter.format(Date(log.timestamp))
+
+    val levelColor = when (log.level) {
+        "SUCCESS" -> CyberGreen
+        "WARN" -> CyberRed
+        "ROUTING" -> CyberPurple
+        else -> CyberBlue
+    }
+
+    val badgeResId = when (log.tag) {
+        "GARLIC", "CRYPT", "KEYRING", "KEYGEN" -> com.example.R.drawable.img_security_gold_1782670586675
+        "TUNNEL", "NETDB", "ROUTER" -> com.example.R.drawable.img_security_silver_1782670571201
+        else -> com.example.R.drawable.img_security_bronze_1782670550813
+    }
+
+    val securityLevelLabel = when (log.tag) {
+        "GARLIC", "CRYPT", "KEYRING", "KEYGEN" -> "GOLD"
+        "TUNNEL", "NETDB", "ROUTER" -> "SILVER"
+        else -> "BRONZE"
+    }
+
+    val securityLevelColor = when (securityLevelLabel) {
+        "GOLD" -> Color(0xFFD4AF37) // Metallic Gold
+        "SILVER" -> Color(0xFFA0A2A6) // Cyber Silver
+        else -> Color(0xFFCD7F32) // Tech Bronze
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CyberDarkSurface, RoundedCornerShape(6.dp))
+            .border(1.dp, securityLevelColor.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // High quality security level image badge
+        Image(
+            painter = painterResource(id = badgeResId),
+            contentDescription = "Security Level: $securityLevelLabel",
+            modifier = Modifier
+                .size(24.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .border(0.5.dp, securityLevelColor.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+        )
+
+        Text(
+            "[$timeStr]",
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            color = TextSecondary,
+            fontSize = 11.sp
+        )
+
+        // Security level indicator tag
+        Surface(
+            color = securityLevelColor.copy(alpha = 0.12f),
+            shape = RoundedCornerShape(3.dp),
+            border = BorderStroke(0.5.dp, securityLevelColor.copy(alpha = 0.4f))
+        ) {
+            Text(
+                securityLevelLabel,
+                color = securityLevelColor,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+            )
+        }
+
+        Text(
+            log.tag,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            color = levelColor,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp
+        )
+        Text(
+            log.message,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            color = TextPrimary,
+            modifier = Modifier.weight(1f),
+            fontSize = 11.sp
+        )
+    }
+}
+
+@Composable
+fun BrowserScreen(
+    viewModel: I2PViewModel,
+    modifier: Modifier = Modifier
+) {
+    val tabState by viewModel.browserTab.collectAsState()
+    val bookmarks by viewModel.bookmarks.collectAsState()
+    val routerState by viewModel.routerState.collectAsState()
+    
+    var urlInput by remember { mutableStateOf(tabState.url) }
+    var showBookmarkDialog by remember { mutableStateOf(false) }
+    var bookmarkTitleInput by remember { mutableStateOf("") }
+    
+    // Sync address bar when page navigates
+    LaunchedEffect(tabState.url) {
+        urlInput = tabState.url
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(CyberBlack)
+    ) {
+        // Safe Address & Proxy Navigation Bar
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+            shape = RoundedCornerShape(0.dp),
+            border = BorderStroke(0.dp, Color.Transparent),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    IconButton(
+                        onClick = { viewModel.browserBack() },
+                        enabled = tabState.currentHistoryIndex > 0,
+                        modifier = Modifier.testTag("browser_back_button")
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = if (tabState.currentHistoryIndex > 0) CyberGreen else TextSecondary
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = urlInput,
+                        onValueChange = { urlInput = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("browser_address_bar"),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            color = TextPrimary,
+                            fontFamily = FontFamily.Monospace
+                        ),
+                        placeholder = { Text("enter.i2p address...", color = TextSecondary) },
+                        leadingIcon = {
+                            Icon(
+                                if (urlInput.endsWith(".i2p")) Icons.Default.VpnLock else Icons.Default.Language,
+                                contentDescription = null,
+                                tint = if (urlInput.endsWith(".i2p")) CyberGreen else TextSecondary
+                            )
+                        },
+                        trailingIcon = {
+                            if (urlInput.isNotEmpty()) {
+                                IconButton(
+                                    onClick = {
+                                        bookmarkTitleInput = tabState.pageTitle
+                                        showBookmarkDialog = true
+                                    },
+                                    modifier = Modifier.testTag("browser_bookmark_icon")
+                                ) {
+                                    Icon(
+                                        Icons.Default.BookmarkBorder,
+                                        contentDescription = "Bookmark this site",
+                                        tint = CyberBlue
+                                    )
+                                }
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedContainerColor = CyberBlack,
+                            unfocusedContainerColor = CyberBlack,
+                            focusedBorderColor = CyberGreen,
+                            unfocusedBorderColor = CyberBorder
+                        ),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Button(
+                        onClick = {
+                            if (urlInput.isNotBlank()) {
+                                viewModel.navigateBrowser(urlInput)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = CyberGreen,
+                            contentColor = CyberBlack
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.testTag("browser_go_button")
+                    ) {
+                        Text("GO", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Shield,
+                        contentDescription = null,
+                        tint = if (routerState.isConnected) CyberGreen else CyberRed,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        if (routerState.isConnected) "Anonymous Tunnel Connection Active" else "Warning: Router is Offline (Browsing is simulated local cached assets)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (routerState.isConnected) CyberGreen else CyberOrange
+                    )
+                }
+            }
+        }
+
+        Divider(color = CyberBorder)
+
+        // Web Content Render area
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            if (tabState.isLoading) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator(color = CyberBlue)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "Routing Garlic Clove payloads...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Title and connection info
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                            border = BorderStroke(1.dp, CyberBorder),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Lock,
+                                        contentDescription = null,
+                                        tint = CyberGreen,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "END-TO-END GARLIC TUNNEL SECURED",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = CyberGreen,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    tabState.pageTitle,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                Text(
+                                    tabState.url,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+
+                    // Simulated Page HTML Contents according to current active URL
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                            border = BorderStroke(1.dp, CyberBorder),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                RenderWebpageContents(url = tabState.url, onNavigate = { viewModel.navigateBrowser(it) })
+                            }
+                        }
+                    }
+
+                    // Bookmarked Sites Grid Header
+                    item {
+                        Text(
+                            "YOUR SEED BOOKMARKS",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+
+                    // Bookmarks List
+                    if (bookmarks.isEmpty()) {
+                        item {
+                            Text(
+                                "No bookmarks saved.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    } else {
+                        items(bookmarks) { bookmark ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                                border = BorderStroke(1.dp, CyberBorder),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { viewModel.navigateBrowser(bookmark.url) }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .background(
+                                                    Color(android.graphics.Color.parseColor(bookmark.colorHex)).copy(alpha = 0.2f),
+                                                    RoundedCornerShape(8.dp)
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                when (bookmark.iconName) {
+                                                    "chat" -> Icons.Default.ChatBubble
+                                                    "description" -> Icons.Default.Description
+                                                    "mail" -> Icons.Default.Mail
+                                                    "forum" -> Icons.Default.Forum
+                                                    else -> Icons.Default.Language
+                                                },
+                                                contentDescription = null,
+                                                tint = Color(android.graphics.Color.parseColor(bookmark.colorHex))
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text(
+                                                bookmark.title,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = TextPrimary,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                bookmark.url,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = TextSecondary,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        }
+                                    }
+                                    IconButton(onClick = { viewModel.deleteWebBookmark(bookmark) }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete Bookmark", tint = CyberRed)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Add Bookmark Dialog
+    if (showBookmarkDialog) {
+        AlertDialog(
+            onDismissRequest = { showBookmarkDialog = false },
+            title = { Text("Add Darkweb Bookmark", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = bookmarkTitleInput,
+                        onValueChange = { bookmarkTitleInput = it },
+                        label = { Text("Title", color = TextSecondary) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberGreen,
+                            unfocusedBorderColor = CyberBorder
+                        )
+                    )
+                    OutlinedTextField(
+                        value = urlInput,
+                        onValueChange = { urlInput = it },
+                        label = { Text("URL Address", color = TextSecondary) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberGreen,
+                            unfocusedBorderColor = CyberBorder
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (bookmarkTitleInput.isNotEmpty() && urlInput.isNotEmpty()) {
+                            viewModel.addWebBookmark(bookmarkTitleInput, urlInput)
+                        }
+                        showBookmarkDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CyberGreen, contentColor = CyberBlack)
+                ) {
+                    Text("Bookmark")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBookmarkDialog = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            },
+            containerColor = CyberDarkSurface
+        )
+    }
+}
+
+@Composable
+fun RenderWebpageContents(url: String, onNavigate: (String) -> Unit) {
+    when {
+        url.contains("i2p-project.i2p") -> {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Simulating standard documentation wiki host inside garlic-routed local directory.", color = TextSecondary, style = MaterialTheme.typography.labelSmall)
+                Text(
+                    "Welcome to the Invisible Internet Project (I2P) decentralized anonymous communication layer. Unlike peer-to-peer torrents, I2P routing layers protect both the client identity and the host server (known as eepsite services) through dynamic garlic routing pools.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary
+                )
+                Text("Suggested Core Portals:", style = MaterialTheme.typography.bodyMedium, color = CyberBlue, fontWeight = FontWeight.Bold)
+                WebpageHyperlink("Browse Anonymous Relay Chat (anon.chat.i2p)", "http://anon.chat.i2p", onNavigate)
+                WebpageHyperlink("Browse Invisible Cryptic Wiki (wiki.leaks.i2p)", "http://wiki.leaks.i2p", onNavigate)
+                WebpageHyperlink("Browse Garlic Mail Service (secure.mail.i2p)", "http://secure.mail.i2p", onNavigate)
+            }
+        }
+        url.contains("anon.chat.i2p") -> {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(8.dp).background(CyberGreen, RoundedCornerShape(4.dp)))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Live Node Chat Pool Active", color = CyberGreen, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                }
+                Text(
+                    "AnonIRC lets you converse safely inside high-entropy garlic tunnels. This portal is linked with your cryptographic keys to secure conversations. Navigate to the Encrypted Communications tab to dispatch private keypairs or secure text packets.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary
+                )
+                Text("Available Channels:", style = MaterialTheme.typography.bodyMedium, color = CyberBlue, fontWeight = FontWeight.Bold)
+                Text("#lobby - Generic discussions (241 active peers)", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                Text("#cryptography - Cryptographic tunnel discussions (88 active peers)", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                Text("#leaks - Document leaks submissions (15 active peers)", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+            }
+        }
+        url.contains("wiki.leaks.i2p") -> {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("WIKILEAKS INTERNAL INVISIBLE REPOSITORY", style = MaterialTheme.typography.bodySmall, color = CyberOrange, fontWeight = FontWeight.Bold)
+                Text(
+                    "This decentralized database acts as an anonymous cryptographic drop box. Our system receives encrypted garlic payloads, logs peer correlations, and redistributes documents without centralized physical hosts.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary
+                )
+                Divider(color = CyberBorder)
+                Text("Recently leaked reports:", style = MaterialTheme.typography.bodyMedium, color = CyberBlue, fontWeight = FontWeight.Bold)
+                Text("• ISP Data Retention Audits 2026 - Leaked PDF index", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                Text("• Surveillance telemetry logs - Automated router interception", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+            }
+        }
+        url.contains("secure.mail.i2p") -> {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("GARLIC SECURE MAIL ENGINE", style = MaterialTheme.typography.bodySmall, color = CyberPurple, fontWeight = FontWeight.Bold)
+                Text(
+                    "Send and collect asymmetric encrypted emails. Messages sent via secure.mail.i2p are automatically wrapped in Garlic cryptocodes and dispatched to host destination hashes.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary
+                )
+                Divider(color = CyberBorder)
+                Text("Inbox status:", style = MaterialTheme.typography.bodyMedium, color = CyberBlue, fontWeight = FontWeight.Bold)
+                Text("All messages are digitally signed. Private communication is protected under ElGamal keys.", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+            }
+        }
+        else -> {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("GENERIC DECENTRALIZED EEPSITE SERVICE", style = MaterialTheme.typography.bodySmall, color = TextSecondary, fontWeight = FontWeight.Bold)
+                Text(
+                    "This website is hosted completely inside the decentralized Peer-to-Peer I2P network, routing traffic dynamically without relying on DNS servers or clearweb hosting providers.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary
+                )
+                Text("The connection remains end-to-end encrypted under garlic-clad leaseSets.", style = MaterialTheme.typography.bodySmall, color = CyberGreen)
+            }
+        }
+    }
+}
+
+@Composable
+fun WebpageHyperlink(text: String, url: String, onNavigate: (String) -> Unit) {
+    Text(
+        text = text,
+        color = CyberBlue,
+        fontWeight = FontWeight.Bold,
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier
+            .clickable { onNavigate(url) }
+            .padding(vertical = 4.dp)
+    )
+}
+
+@Composable
+fun CommunicationsScreen(
+    viewModel: I2PViewModel,
+    modifier: Modifier = Modifier
+) {
+    val messages by viewModel.messages.collectAsState()
+    val activeIdentity by viewModel.activeIdentity.collectAsState()
+    val routerState by viewModel.routerState.collectAsState()
+
+    var recipientInput by remember { mutableStateOf("") }
+    var messageInput by remember { mutableStateOf("") }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(CyberBlack)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Active Identity Key Details
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+            border = BorderStroke(1.dp, CyberBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "YOUR ACTIVE CRYPTOGRAPHIC ALIAS",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CyberPurple,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (activeIdentity != null) {
+                    Text(
+                        activeIdentity!!.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "I2P Address: ${activeIdentity!!.i2pAddress}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = CyberGreen,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Destination Hash: ${activeIdentity!!.fullDestination}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary,
+                        fontFamily = FontFamily.Monospace
+                    )
+                } else {
+                    Text(
+                        "No Identity Selected. Navigate to Identity tab to register secure cryptographic profiles.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = CyberRed
+                    )
+                }
+            }
+        }
+
+        // Send Garlic Encrypted Clove Message
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+            border = BorderStroke(1.dp, CyberBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "DISPATCH ENCRYPTED MESSAGE (GARLIC ROUTED)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CyberBlue,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = recipientInput,
+                    onValueChange = { recipientInput = it },
+                    label = { Text("Recipient .i2p address", color = TextSecondary) },
+                    placeholder = { Text("e.g. anon.chat.i2p", color = TextSecondary) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("comms_recipient_input"),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedBorderColor = CyberGreen,
+                        unfocusedBorderColor = CyberBorder
+                    ),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = messageInput,
+                    onValueChange = { messageInput = it },
+                    label = { Text("Secret message payload", color = TextSecondary) },
+                    placeholder = { Text("Message body encrypted on client before dispatch...", color = TextSecondary) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("comms_message_input"),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedBorderColor = CyberGreen,
+                        unfocusedBorderColor = CyberBorder
+                    ),
+                    maxLines = 4
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = {
+                        if (recipientInput.isNotEmpty() && messageInput.isNotEmpty()) {
+                            viewModel.sendSecurePayload(recipientInput, messageInput)
+                            messageInput = ""
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CyberGreen,
+                        contentColor = CyberBlack
+                    ),
+                    enabled = routerState.isConnected && activeIdentity != null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("comms_send_button")
+                ) {
+                    Icon(Icons.Default.EnhancedEncryption, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        if (!routerState.isConnected) "Connect Router to dispatch" else "Garlic-Encrypt & Send",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // Live Communication Stream
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "DECRYPTED LIVE CHAT HISTORY",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextSecondary,
+                fontWeight = FontWeight.Bold
+            )
+            TextButton(
+                onClick = { viewModel.clearHistory() },
+                colors = ButtonDefaults.textButtonColors(contentColor = CyberRed)
+            ) {
+                Icon(Icons.Default.ClearAll, contentDescription = "Clear Messaging Session", modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Clear History", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+
+        if (messages.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "No messages in secure channel. Enter a recipient and try sending a message.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(messages, key = { it.id }) { msg ->
+                    MessageCardItem(msg = msg)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MessageCardItem(msg: SecureMessage) {
+    val formatter = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+    val timeStr = formatter.format(Date(msg.timestamp))
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (msg.isIncoming) CyberCardBg else CyberDarkSurface
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (msg.isIncoming) CyberPurple.copy(alpha = 0.4f) else CyberGreen.copy(alpha = 0.4f)
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    if (msg.isIncoming) "INCOMING GARLIC PAYLOAD" else "OUTGOING DEPLOYMENT",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (msg.isIncoming) CyberPurple else CyberGreen,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    timeStr,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                "Sender: ${msg.senderAddress}",
+                style = MaterialTheme.typography.labelMedium,
+                color = TextSecondary,
+                fontFamily = FontFamily.Monospace
+            )
+            Text(
+                "Recipient: ${msg.recipientAddress}",
+                style = MaterialTheme.typography.labelMedium,
+                color = TextSecondary,
+                fontFamily = FontFamily.Monospace
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Divider(color = CyberBorder)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Body text
+            Text(
+                msg.decryptedBody ?: "[Encrypted payload base64 bytes...]",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextPrimary
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Raw Block: ${msg.encryptedPayload.take(24)}...",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextSecondary,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+    }
+}
+
+enum class IdentitySubTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    MY_KEYRINGS("My Keyrings", Icons.Default.Key),
+    PEER_KEYS("Peer Key Manager", Icons.Default.VpnKey),
+    INVITATION_LAB("Secure Invite", Icons.Default.Share)
+}
+
+@Composable
+fun IdentityScreen(
+    viewModel: I2PViewModel,
+    modifier: Modifier = Modifier
+) {
+    var activeSubTab by remember { mutableStateOf(IdentitySubTab.MY_KEYRINGS) }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(CyberBlack)
+    ) {
+        // Sub-tabs indicator
+        TabRow(
+            selectedTabIndex = activeSubTab.ordinal,
+            containerColor = CyberDarkSurface,
+            contentColor = CyberBlue,
+            indicator = { tabPositions ->
+                TabRowDefaults.Indicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[activeSubTab.ordinal]),
+                    color = CyberBlue
+                )
+            }
+        ) {
+            IdentitySubTab.values().forEach { tab ->
+                val isSelected = activeSubTab == tab
+                Tab(
+                    selected = isSelected,
+                    onClick = { activeSubTab = tab },
+                    text = {
+                        Text(
+                            tab.label,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    icon = {
+                        Icon(
+                            tab.icon,
+                            contentDescription = tab.label,
+                            tint = if (isSelected) CyberBlue else TextSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    selectedContentColor = CyberBlue,
+                    unselectedContentColor = TextSecondary,
+                    modifier = Modifier.testTag("identity_subtab_${tab.name.lowercase()}")
+                )
+            }
+        }
+
+        when (activeSubTab) {
+            IdentitySubTab.MY_KEYRINGS -> MyKeyringsTab(viewModel = viewModel)
+            IdentitySubTab.PEER_KEYS -> PeerKeyManagerTab(viewModel = viewModel)
+            IdentitySubTab.INVITATION_LAB -> InvitationLabTab(viewModel = viewModel)
+        }
+    }
+}
+
+@Composable
+fun MyKeyringsTab(viewModel: I2PViewModel) {
+    val identities by viewModel.identities.collectAsState()
+    val activeIdentity by viewModel.activeIdentity.collectAsState()
+    var aliasNameInput by remember { mutableStateOf("") }
+    val clipboardManager = LocalClipboardManager.current
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Register New Alias Block
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                border = BorderStroke(1.dp, CyberBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "REGISTER CRYPTOGRAPHIC SECURITY ALIAS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyberBlue,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Generates standard ElGamal and session-tag asymmetric public/private keys used to advertise leaseSets in NetDB.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = aliasNameInput,
+                        onValueChange = { aliasNameInput = it },
+                        label = { Text("Comrade pseudonym", color = TextSecondary) },
+                        placeholder = { Text("e.g. ComradeX", color = TextSecondary) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("identity_alias_input"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberGreen,
+                            unfocusedBorderColor = CyberBorder
+                        ),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            if (aliasNameInput.isNotBlank()) {
+                                viewModel.createNewIdentity(aliasNameInput)
+                                aliasNameInput = ""
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = CyberBlue,
+                            contentColor = CyberBlack
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("identity_generate_button")
+                    ) {
+                        Icon(Icons.Default.Key, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Generate KeyPair & Alias", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // Active Identity details with raw keys
+        if (activeIdentity != null) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                    border = BorderStroke(1.dp, CyberBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "ACTIVE KEYRING INFORMATION",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CyberGreen,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            activeIdentity!!.name,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Address Domain: ${activeIdentity!!.i2pAddress}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = CyberGreen,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Public Key Copy
+                        Text(
+                            "Asymmetric Public Key (Base64)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                activeIdentity!!.publicKeyBase64.take(32) + "...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextPrimary,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = {
+                                clipboardManager.setText(AnnotatedString(activeIdentity!!.publicKeyBase64))
+                            }) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy Public Key", tint = CyberBlue, modifier = Modifier.size(16.dp))
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Private Key Warning
+                        Text(
+                            "Asymmetric Private Key (Secret)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CyberOrange
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "••••••••••••••••••••••••••••••••",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = CyberOrange,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = {
+                                clipboardManager.setText(AnnotatedString(activeIdentity!!.privateKeyBase64))
+                            }) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy Private Key", tint = CyberOrange, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // All profiles list
+        item {
+            Text(
+                "REGISTERED COM-KEYRINGS",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextSecondary,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        if (identities.isEmpty()) {
+            item {
+                Text(
+                    "No aliases configured on this key ring.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+            }
+        } else {
+            items(identities) { identity ->
+                val isActive = activeIdentity?.id == identity.id
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isActive) CyberBlue.copy(alpha = 0.1f) else CyberDarkSurface
+                    ),
+                    border = BorderStroke(
+                        1.dp,
+                        if (isActive) CyberBlue else CyberBorder
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.switchIdentity(identity) }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                identity.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = TextPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                identity.i2pAddress,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = CyberGreen,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        if (isActive) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = "Active KeyRing",
+                                tint = CyberGreen
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PeerKeyManagerTab(viewModel: I2PViewModel) {
+    val trustedKeys by viewModel.trustedKeys.collectAsState()
+    
+    var manualAlias by remember { mutableStateOf("") }
+    var manualAddress by remember { mutableStateOf("") }
+    var manualPublicKey by remember { mutableStateOf("") }
+    var showAddManualDialog by remember { mutableStateOf(false) }
+
+    val clipboardManager = LocalClipboardManager.current
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Quick Statistics Card & Action
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                border = BorderStroke(1.dp, CyberBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                "PEER KEYRING DATABASE",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = CyberBlue,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Local Address Book & Peer Verification",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                        Button(
+                            onClick = { showAddManualDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = CyberBlue),
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Add Key Manually", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Import Key", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // List Header
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "TRUSTED CONTACT KEYRINGS",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "${trustedKeys.size} active peers",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CyberGreen,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        if (trustedKeys.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .background(CyberDarkSurface, RoundedCornerShape(8.dp))
+                        .border(1.dp, CyberBorder, RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.VpnKey, contentDescription = null, tint = TextSecondary.copy(alpha = 0.5f), modifier = Modifier.size(40.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("No trusted peer keys in keyring database.", color = TextSecondary, fontSize = 13.sp)
+                        Text("Exchange secure invitations to establish contact.", color = TextSecondary.copy(alpha = 0.7f), fontSize = 11.sp)
+                    }
+                }
+            }
+        } else {
+            items(trustedKeys) { key ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                    border = BorderStroke(1.dp, if (key.isVerified) CyberGreen.copy(alpha = 0.6f) else CyberBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        key.alias,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = TextPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    if (key.isVerified) {
+                                        Surface(
+                                            color = CyberGreen.copy(alpha = 0.15f),
+                                            shape = RoundedCornerShape(4.dp),
+                                            border = BorderStroke(0.5.dp, CyberGreen)
+                                        ) {
+                                            Text(
+                                                "VERIFIED",
+                                                color = CyberGreen,
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    } else {
+                                        Surface(
+                                            color = CyberOrange.copy(alpha = 0.15f),
+                                            shape = RoundedCornerShape(4.dp),
+                                            border = BorderStroke(0.5.dp, CyberOrange)
+                                        ) {
+                                            Text(
+                                                "UNVERIFIED",
+                                                color = CyberOrange,
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Text(
+                                    key.i2pAddress,
+                                    fontSize = 11.sp,
+                                    color = CyberBlue,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            IconButton(onClick = { viewModel.deleteTrustedKey(key) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Revoke Peer Key", tint = CyberRed, modifier = Modifier.size(18.dp))
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Divider(color = CyberBorder.copy(alpha = 0.5f))
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Public Key Segment
+                        Text(
+                            "Public Key Fingerprint (Base64)",
+                            fontSize = 9.sp,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                key.publicKeyBase64.take(48) + "...",
+                                fontSize = 10.sp,
+                                color = TextPrimary,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = { clipboardManager.setText(AnnotatedString(key.publicKeyBase64)) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy Public Key", tint = CyberBlue, modifier = Modifier.size(14.dp))
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Dynamic Hands-on Security Controls
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Session Tag Status Bar
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "GARLIC SESSION TAGS",
+                                        fontSize = 8.sp,
+                                        color = TextSecondary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        "${key.sessionTagCount}/100 remaining",
+                                        fontSize = 8.sp,
+                                        color = if (key.sessionTagCount > 20) CyberGreen else CyberOrange,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                LinearProgressIndicator(
+                                    progress = key.sessionTagCount / 100f,
+                                    color = if (key.sessionTagCount > 20) CyberGreen else CyberOrange,
+                                    trackColor = CyberBorder,
+                                    modifier = Modifier.fillMaxWidth().height(4.dp).border(0.5.dp, CyberBorder, RoundedCornerShape(2.dp))
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(4.dp))
+
+                            // Verification/Challenge Action Button
+                            Button(
+                                onClick = { viewModel.verifyPeerKey(key) },
+                                colors = ButtonDefaults.buttonColors(containerColor = if (key.isVerified) CyberBorder else CyberGreen.copy(alpha = 0.2f)),
+                                border = BorderStroke(1.dp, if (key.isVerified) CyberBorder else CyberGreen),
+                                shape = MaterialTheme.shapes.small,
+                                modifier = Modifier.height(28.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (key.isVerified) Icons.Default.Refresh else Icons.Default.Security,
+                                    contentDescription = null,
+                                    tint = if (key.isVerified) TextSecondary else CyberGreen,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    if (key.isVerified) "Re-Verify" else "Verify Identity",
+                                    fontSize = 10.sp,
+                                    color = if (key.isVerified) TextPrimary else CyberGreen,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Add Manual Key Dialog
+    if (showAddManualDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddManualDialog = false },
+            containerColor = CyberBlack,
+            title = {
+                Text(
+                    "IMPORT TRUSTED PEER KEY",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = CyberBlue,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "Paste a peer's cryptographic address parameters to trust their public keys for garlic-encryption.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                    OutlinedTextField(
+                        value = manualAlias,
+                        onValueChange = { manualAlias = it },
+                        label = { Text("Peer Alias / Pseudonym", color = TextSecondary) },
+                        placeholder = { Text("e.g. Alice", color = TextSecondary) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberBlue,
+                            unfocusedBorderColor = CyberBorder
+                        ),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = manualAddress,
+                        onValueChange = { manualAddress = it },
+                        label = { Text("Peer I2P Address", color = TextSecondary) },
+                        placeholder = { Text("e.g. alice.i2p", color = TextSecondary) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberBlue,
+                            unfocusedBorderColor = CyberBorder
+                        ),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = manualPublicKey,
+                        onValueChange = { manualPublicKey = it },
+                        label = { Text("Base64 Public Key", color = TextSecondary) },
+                        placeholder = { Text("Paste long cryptographic base64 hash...", color = TextSecondary) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberBlue,
+                            unfocusedBorderColor = CyberBorder
+                        ),
+                        maxLines = 4
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (manualAlias.isNotBlank() && manualAddress.isNotBlank() && manualPublicKey.isNotBlank()) {
+                            viewModel.importTrustedKey(manualAlias, manualAddress, manualPublicKey, isVerified = false)
+                            manualAlias = ""
+                            manualAddress = ""
+                            manualPublicKey = ""
+                            showAddManualDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CyberBlue),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text("Trust Key", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddManualDialog = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            },
+            modifier = Modifier.border(1.dp, CyberBorder, RoundedCornerShape(28.dp))
+        )
+    }
+}
+
+@Composable
+fun InvitationLabTab(viewModel: I2PViewModel) {
+    val activeIdentity by viewModel.activeIdentity.collectAsState()
+    
+    var sharePinCode by remember { mutableStateOf("") }
+    var exportFormatByGarlic by remember { mutableStateOf(false) } // False = Basic Link, True = Garlic Encrypted Packet
+    
+    var importInvitationText by remember { mutableStateOf("") }
+    var importPinCode by remember { mutableStateOf("") }
+    
+    var importStatusMessage by remember { mutableStateOf("") }
+    var isImportSuccess by remember { mutableStateOf<Boolean?>(null) }
+    
+    val clipboardManager = LocalClipboardManager.current
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Section 1: Generate Invitation
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                border = BorderStroke(1.dp, CyberBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "DISPATCH CRYPTOGRAPHIC INVITATION",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyberBlue,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Package your active public key parameters so another comrade can trust you and send you garlic-encrypted messages.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    if (activeIdentity == null) {
+                        Text(
+                            "Please create an identity in the 'My Keyrings' tab first.",
+                            color = CyberOrange,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else {
+                        // Interactive Toggle
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(CyberBlack, RoundedCornerShape(4.dp))
+                                .border(1.dp, CyberBorder, RoundedCornerShape(4.dp))
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Button(
+                                onClick = { exportFormatByGarlic = false },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (!exportFormatByGarlic) CyberBlue.copy(alpha = 0.15f) else Color.Transparent
+                                ),
+                                shape = RoundedCornerShape(4.dp),
+                                border = if (!exportFormatByGarlic) BorderStroke(1.dp, CyberBlue) else null,
+                                modifier = Modifier.weight(1f).height(32.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text(
+                                    "Basic Link",
+                                    fontSize = 11.sp,
+                                    color = if (!exportFormatByGarlic) CyberBlue else TextSecondary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Button(
+                                onClick = { exportFormatByGarlic = true },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (exportFormatByGarlic) CyberGreen.copy(alpha = 0.15f) else Color.Transparent
+                                ),
+                                shape = RoundedCornerShape(4.dp),
+                                border = if (exportFormatByGarlic) BorderStroke(1.dp, CyberGreen) else null,
+                                modifier = Modifier.weight(1f).height(32.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text(
+                                    "Garlic Packet (Secure)",
+                                    fontSize = 11.sp,
+                                    color = if (exportFormatByGarlic) CyberGreen else TextSecondary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        val activeId = activeIdentity!!
+                        if (exportFormatByGarlic) {
+                            // PIN input
+                            OutlinedTextField(
+                                value = sharePinCode,
+                                onValueChange = { if (it.length <= 6 && it.all { char -> char.isDigit() }) sharePinCode = it },
+                                label = { Text("Shared Secret PIN (6 Digits)", color = TextSecondary) },
+                                placeholder = { Text("e.g. 583921", color = TextSecondary) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary,
+                                    focusedBorderColor = CyberGreen,
+                                    unfocusedBorderColor = CyberBorder
+                                ),
+                                singleLine = true
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Button(
+                                onClick = {
+                                    val code = sharePinCode.ifBlank { "123456" }
+                                    val packet = viewModel.generateGarlicEncryptedInvite(
+                                        activeId.name, activeId.i2pAddress, activeId.publicKeyBase64, code
+                                    )
+                                    clipboardManager.setText(AnnotatedString(packet))
+                                    importStatusMessage = "Secure Garlic Packet copied! Share it and the PIN: $code"
+                                    isImportSuccess = true
+                                    sharePinCode = ""
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = CyberGreen, contentColor = CyberBlack),
+                                shape = MaterialTheme.shapes.small,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Generate & Copy Garlic Packet", fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            Text(
+                                "Quick, unencrypted invitation link suitable for trusted channels.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+
+                            Button(
+                                onClick = {
+                                    val link = viewModel.generateBasicInviteLink(
+                                        activeId.name, activeId.i2pAddress, activeId.publicKeyBase64
+                                    )
+                                    clipboardManager.setText(AnnotatedString(link))
+                                    importStatusMessage = "Invitation Link copied to clipboard!"
+                                    isImportSuccess = true
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = CyberBlue, contentColor = CyberBlack),
+                                shape = MaterialTheme.shapes.small,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Copy Basic Invitation Link", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section 2: Import Invitation
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                border = BorderStroke(1.dp, CyberBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "IMPORT INVITATION",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyberBlue,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Paste a basic link or garlic-encrypted packet received from another comrade to add them to your Keyring database.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = importInvitationText,
+                        onValueChange = { importInvitationText = it },
+                        label = { Text("Paste Invitation Code or Link", color = TextSecondary) },
+                        placeholder = { Text("i2p://invite... OR garlic-packet-invite:...", color = TextSecondary) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberBlue,
+                            unfocusedBorderColor = CyberBorder
+                        ),
+                        maxLines = 4
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (importInvitationText.startsWith("garlic-packet-invite:")) {
+                        OutlinedTextField(
+                            value = importPinCode,
+                            onValueChange = { if (it.length <= 6 && it.all { char -> char.isDigit() }) importPinCode = it },
+                            label = { Text("Decryption PIN Code", color = TextSecondary) },
+                            placeholder = { Text("Enter 6-digit PIN shared with you...", color = TextSecondary) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                focusedBorderColor = CyberGreen,
+                                unfocusedBorderColor = CyberBorder
+                            ),
+                            singleLine = true
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
+                    Button(
+                        onClick = {
+                            if (importInvitationText.isBlank()) return@Button
+                            
+                            val text = importInvitationText.trim()
+                            if (text.startsWith("i2p://invite")) {
+                                val result = viewModel.parseBasicInviteLink(text)
+                                if (result != null) {
+                                    viewModel.importTrustedKey(result.first, result.second, result.third, isVerified = true)
+                                    importStatusMessage = "Successfully imported peer key for: ${result.first}"
+                                    isImportSuccess = true
+                                    importInvitationText = ""
+                                } else {
+                                    importStatusMessage = "Error: Invalid invitation link format."
+                                    isImportSuccess = false
+                                }
+                            } else if (text.startsWith("garlic-packet-invite:")) {
+                                val code = importPinCode.ifBlank { "123456" }
+                                val result = viewModel.decryptGarlicEncryptedInvite(text, code)
+                                if (result != null) {
+                                    viewModel.importTrustedKey(result.first, result.second, result.third, isVerified = true)
+                                    importStatusMessage = "Decrypted & imported peer key: ${result.first}"
+                                    isImportSuccess = true
+                                    importInvitationText = ""
+                                    importPinCode = ""
+                                } else {
+                                    importStatusMessage = "Decryption Failed: Incorrect PIN or tampered packet."
+                                    isImportSuccess = false
+                                }
+                            } else {
+                                importStatusMessage = "Error: Unrecognized invitation format."
+                                isImportSuccess = false
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = CyberBlue, contentColor = CyberBlack),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Verify & Decode Invite Packet", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // Import status alert message
+        if (importStatusMessage.isNotEmpty()) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isImportSuccess == true) CyberGreen.copy(alpha = 0.15f) else CyberRed.copy(alpha = 0.15f)
+                    ),
+                    border = BorderStroke(1.dp, if (isImportSuccess == true) CyberGreen else CyberRed),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isImportSuccess == true) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                            contentDescription = null,
+                            tint = if (isImportSuccess == true) CyberGreen else CyberRed,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            importStatusMessage,
+                            color = if (isImportSuccess == true) CyberGreen else CyberRed,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { importStatusMessage = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Dismiss status", tint = TextSecondary, modifier = Modifier.size(14.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GarlicRoutingPathVisualizer(
+    tunnelHops: Int,
+    isConnected: Boolean,
+    isConnecting: Boolean
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "garlic_flow")
+    
+    // Animate the dash phase shift for connection lines
+    val dashPhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 100f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "dash_phase"
+    )
+
+    // Animate packet/pulse progress along each tunnel segment
+    val packetProgress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "packet_progress"
+    )
+
+    // Pulse size for glow animations
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_scale"
+    )
+
+    // Ticker state to fluctuate latencies and make simulation feel real & alive
+    var tick by remember { mutableStateOf(0) }
+    LaunchedEffect(isConnected, isConnecting) {
+        if (isConnected) {
+            while (true) {
+                kotlinx.coroutines.delay(2000)
+                tick++
+            }
+        }
+    }
+
+    // Build the nodes dynamically based on current hop settings and connection/tick states
+    val nodes = remember(tunnelHops, tick, isConnected, isConnecting) {
+        val random = java.util.Random(tick.toLong() + tunnelHops * 17)
+        
+        fun getLatency(base: Int): Int {
+            if (!isConnected) return 0
+            val jitter = random.nextInt(16) - 8 // +/- 8ms jitter
+            return (base + jitter).coerceAtLeast(1)
+        }
+        
+        fun getHealth(latency: Int): NodeHealth {
+            if (!isConnected) return NodeHealth.OFFLINE
+            return when {
+                latency < 50 -> NodeHealth.EXCELLENT
+                latency < 110 -> NodeHealth.GOOD
+                latency < 180 -> NodeHealth.DEGRADED
+                else -> NodeHealth.DEGRADED
+            }
+        }
+
+        when (tunnelHops) {
+            1 -> {
+                val lat0 = 2 // Client always low latency
+                val lat1 = getLatency(42)
+                val lat2 = getLatency(94)
+                listOf(
+                    VisualNode("Client", "Src Portal", "client", lat0, NodeHealth.EXCELLENT),
+                    VisualNode("Hop 1", "Tunnel Relay", "relay", lat1, getHealth(lat1)),
+                    VisualNode("Eepsite", "Dest Server", "destination", lat2, getHealth(lat2))
+                )
+            }
+            3 -> {
+                val lat0 = 3
+                val lat1 = getLatency(38)
+                val lat2 = getLatency(85)
+                val lat3 = getLatency(135)
+                val lat4 = getLatency(198)
+                listOf(
+                    VisualNode("Client", "Src Portal", "client", lat0, NodeHealth.EXCELLENT),
+                    VisualNode("I-Gate", "Inbound Gateway", "gate", lat1, getHealth(lat1)),
+                    VisualNode("Transit", "Standard Relay", "relay", lat2, getHealth(lat2)),
+                    VisualNode("O-Gate", "Outbound Gateway", "gate", lat3, getHealth(lat3)),
+                    VisualNode("Eepsite", "Dest Server", "destination", lat4, getHealth(lat4))
+                )
+            }
+            else -> {
+                val lat0 = 4
+                val lat1 = getLatency(32)
+                val lat2 = getLatency(74)
+                val lat3 = getLatency(115)
+                val lat4 = getLatency(162)
+                val lat5 = getLatency(225)
+                listOf(
+                    VisualNode("Client", "Src Portal", "client", lat0, NodeHealth.EXCELLENT),
+                    VisualNode("I-Gate", "Inbound Gateway", "gate", lat1, getHealth(lat1)),
+                    VisualNode("Transit A", "Relay Alpha", "relay", lat2, getHealth(lat2)),
+                    VisualNode("Transit B", "Relay Beta", "relay", lat3, getHealth(lat3)),
+                    VisualNode("O-Gate", "Outbound Gateway", "gate", lat4, getHealth(lat4)),
+                    VisualNode("Eepsite", "Dest Server", "destination", lat5, getHealth(lat5))
+                )
+            }
+        }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.dp, CyberBorder),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        "LIVE GARLIC TUNNEL PATH SIMULATION",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyberBlue,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        if (isConnected) "Garlic Packet Streams Active" else if (isConnecting) "Assembling Tunnel Layers..." else "Tunnel Inactive",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isConnected) CyberGreen else if (isConnecting) CyberOrange else TextSecondary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                // Indicators Legend
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(6.dp).background(Color(0xFF00E676), androidx.compose.foundation.shape.CircleShape))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Stable", style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontSize = 9.sp)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(6.dp).background(Color(0xFFFF9100), androidx.compose.foundation.shape.CircleShape))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Jitter", style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontSize = 9.sp)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Canvas visualization
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .background(CyberBlack, RoundedCornerShape(8.dp))
+                    .border(1.dp, CyberBorder, RoundedCornerShape(8.dp))
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val width = size.width
+                    val height = size.height
+                    val paddingX = 40.dp.toPx()
+                    
+                    val nodeCount = nodes.size
+                    val xStep = (width - paddingX * 2) / (nodeCount - 1)
+                    
+                    val nodePositions = nodes.mapIndexed { index, node ->
+                        val x = paddingX + index * xStep
+                        val yOffset = if (index == 0 || index == nodeCount - 1) 0f else {
+                            if (index % 2 == 1) -height * 0.2f else height * 0.2f
+                        }
+                        val y = (height / 2) + yOffset
+                        Pair(node, Offset(x, y))
+                    }
+
+                    // 1. Draw connecting lines between nodes
+                    for (i in 0 until nodePositions.size - 1) {
+                        val start = nodePositions[i].second
+                        val end = nodePositions[i + 1].second
+
+                        // Draw background track line
+                        drawLine(
+                            color = CyberBorder,
+                            start = start,
+                            end = end,
+                            strokeWidth = 2.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+
+                        // Draw animated path flow if active or connecting
+                        if (isConnected || isConnecting) {
+                            val lineColor = if (isConnected) {
+                                // Transition from green to purple across the tunnel hops to show encryption to decryption transition
+                                val ratio = i.toFloat() / (nodePositions.size - 2)
+                                lerpColor(CyberGreen, CyberPurple, ratio)
+                            } else {
+                                CyberOrange
+                            }
+
+                            // Flowing dashed line effect
+                            val dashPathEffect = PathEffect.dashPathEffect(
+                                intervals = floatArrayOf(24f, 16f),
+                                phase = -dashPhase
+                            )
+
+                            drawLine(
+                                color = lineColor,
+                                start = start,
+                                end = end,
+                                strokeWidth = 3.dp.toPx(),
+                                cap = StrokeCap.Round,
+                                pathEffect = dashPathEffect
+                            )
+
+                            // 2. Draw moving Garlic Clove packet pulses
+                            val currentPos = start + (end - start) * packetProgress
+                            drawCircle(
+                                color = lineColor,
+                                radius = 4.dp.toPx(),
+                                center = currentPos
+                            )
+                            // Packet outer glow
+                            drawCircle(
+                                color = lineColor.copy(alpha = 0.3f),
+                                radius = 8.dp.toPx() * pulseScale,
+                                center = currentPos
+                            )
+                        }
+                    }
+
+                    // 3. Draw nodes
+                    nodePositions.forEachIndexed { index, pair ->
+                        val node = pair.first
+                        val center = pair.second
+
+                        val nodeColor = when {
+                            !isConnected && !isConnecting -> CyberBorder
+                            isConnecting -> CyberOrange
+                            else -> {
+                                val ratio = index.toFloat() / (nodePositions.size - 1)
+                                lerpColor(CyberGreen, CyberPurple, ratio)
+                            }
+                        }
+
+                        // Node Outer Glow
+                        if (isConnected || isConnecting) {
+                            drawCircle(
+                                color = nodeColor.copy(alpha = 0.2f),
+                                radius = 14.dp.toPx() * pulseScale,
+                                center = center
+                            )
+                        }
+
+                        // Node Border Ring
+                        drawCircle(
+                            color = nodeColor,
+                            radius = 8.dp.toPx(),
+                            center = center,
+                            style = Stroke(width = 2.dp.toPx())
+                        )
+
+                        // Node Solid Center
+                        drawCircle(
+                            color = if (isConnected || isConnecting) CyberBlack else CyberCardBg,
+                            radius = 6.dp.toPx(),
+                            center = center
+                        )
+
+                        drawCircle(
+                            color = nodeColor,
+                            radius = 3.dp.toPx(),
+                            center = center
+                        )
+
+                        // Connection Status Dot Indicator on top-right of node
+                        val badgeOffset = Offset(center.x + 8.dp.toPx(), center.y - 8.dp.toPx())
+                        val statusDotColor = if (isConnected) {
+                            node.health.color
+                        } else if (isConnecting) {
+                            if (index == 0) Color(0xFF00E676) else CyberOrange
+                        } else {
+                            if (index == 0) Color(0xFF00E676) else Color(0xFFFF1744)
+                        }
+
+                        // Status dot outer glow
+                        drawCircle(
+                            color = statusDotColor.copy(alpha = 0.4f),
+                            radius = 5.dp.toPx(),
+                            center = badgeOffset
+                        )
+
+                        // Status dot solid center
+                        drawCircle(
+                            color = statusDotColor,
+                            radius = 3.dp.toPx(),
+                            center = badgeOffset
+                        )
+
+                        // Status dot crisp border line
+                        drawCircle(
+                            color = CyberBlack,
+                            radius = 3.dp.toPx(),
+                            center = badgeOffset,
+                            style = Stroke(width = 0.8.dp.toPx())
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Dynamic Path Description Text/Labels
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                nodes.forEachIndexed { index, node ->
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            node.name,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isConnected) {
+                                val ratio = index.toFloat() / (nodes.size - 1)
+                                lerpColor(CyberGreen, CyberPurple, ratio)
+                            } else {
+                                TextPrimary
+                            },
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            node.description,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                            textAlign = TextAlign.Center
+                        )
+                        
+                        // Added Latency & Connection Health indicator badges below descriptions
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            val dotColor = if (isConnected) {
+                                node.health.color
+                            } else if (isConnecting) {
+                                if (index == 0) Color(0xFF00E676) else CyberOrange
+                            } else {
+                                if (index == 0) Color(0xFF00E676) else Color(0xFFFF1744)
+                            }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .size(5.dp)
+                                    .background(dotColor, androidx.compose.foundation.shape.CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            val latencyText = when {
+                                !isConnected && !isConnecting -> if (index == 0) "2ms" else "offline"
+                                isConnecting -> if (index == 0) "2ms" else "ping..."
+                                else -> "${node.latencyMs}ms"
+                            }
+                            Text(
+                                text = latencyText,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isConnected) TextPrimary else TextSecondary,
+                                fontSize = 9.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (isConnected) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Divider(color = CyberBorder)
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Text(
+                    "Path Cryptography: Client encrypts message inside nested ElGamal layers. Each intermediary hop decrypts its specific instruction layer (using Session Tags) to locate the next hop without learning the payload content or original source.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary,
+                    lineHeight = 14.sp
+                )
+            }
+        }
+    }
+}
+
+// Utility function to interpolate colors
+fun lerpColor(start: Color, stop: Color, fraction: Float): Color {
+    return Color(
+        red = start.red + (stop.red - start.red) * fraction,
+        green = start.green + (stop.green - start.green) * fraction,
+        blue = start.blue + (stop.blue - start.blue) * fraction,
+        alpha = start.alpha + (stop.alpha - start.alpha) * fraction
+    )
+}
+
+enum class NodeHealth(val label: String, val color: Color) {
+    EXCELLENT("Excellent", Color(0xFF00E676)),
+    GOOD("Good", Color(0xFF00B0FF)),
+    DEGRADED("Degraded", Color(0xFFFF9100)),
+    OFFLINE("Offline", Color(0xFFFF1744))
+}
+
+data class VisualNode(
+    val name: String,
+    val description: String,
+    val type: String,
+    val latencyMs: Int,
+    val health: NodeHealth
+)
+
+@Composable
+fun PeerDiscoverySection(
+    viewModel: I2PViewModel,
+    modifier: Modifier = Modifier
+) {
+    val peers by viewModel.discoveredPeers.collectAsState()
+    val isDiscovering by viewModel.isDiscovering.collectAsState()
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.dp, CyberBorder),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Public,
+                        contentDescription = "Global Peer Map",
+                        tint = CyberBlue,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "GLOBAL PEER DISCOVERY",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyberBlue,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                if (isDiscovering) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = CyberBlue
+                    )
+                } else {
+                    IconButton(
+                        onClick = { viewModel.discoverPeers() },
+                        modifier = Modifier.size(24.dp).testTag("refresh_peers_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Refresh Peer List",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Simulated view of cryptographically verified active global routing nodes registered in local NetDB database.",
+                style = MaterialTheme.typography.labelMedium,
+                color = TextSecondary
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Discovered Peers List
+            if (peers.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .background(CyberCardBg, RoundedCornerShape(8.dp))
+                        .border(1.dp, CyberBorder, RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.Dns,
+                            contentDescription = "No Peers",
+                            tint = TextSecondary.copy(alpha = 0.4f),
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "NetDB peer list is currently unseeded.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    peers.forEach { peer ->
+                        PeerRowItem(peer = peer)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Action Trigger Button
+            Button(
+                onClick = { viewModel.discoverPeers() },
+                enabled = !isDiscovering,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = CyberBlue.copy(alpha = 0.15f),
+                    contentColor = CyberBlue,
+                    disabledContainerColor = CyberBorder.copy(alpha = 0.2f),
+                    disabledContentColor = TextSecondary
+                ),
+                shape = RoundedCornerShape(6.dp),
+                border = BorderStroke(1.dp, if (isDiscovering) CyberBorder else CyberBlue),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+                    .testTag("scan_netdb_button")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = if (isDiscovering) Icons.Default.Sync else Icons.Default.Search,
+                        contentDescription = "Scan icon",
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isDiscovering) "RESOLVING GLOBAL PEER ENVELOPS..." else "SCAN GLOBAL NETWORK DATABASE (NETDB)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PeerRowItem(peer: DiscoveredPeer) {
+    val statusColor = when (peer.status) {
+        PeerStatus.ACTIVE -> CyberGreen
+        PeerStatus.STABLE -> CyberBlue
+        PeerStatus.DEGRADED -> CyberOrange
+    }
+
+    val healthBg = statusColor.copy(alpha = 0.1f)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CyberCardBg, RoundedCornerShape(6.dp))
+            .border(1.dp, CyberBorder, RoundedCornerShape(6.dp))
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        // Left Column: Node identity, country region
+        Column(modifier = Modifier.weight(1.3f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "${peer.flagEmoji} ",
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = peer.routerId,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                if (peer.isVerified) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Cryptographically Verified",
+                        tint = CyberGreen,
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = peer.i2pAddress.take(8) + "..." + peer.i2pAddress.takeLast(7),
+                    color = TextSecondary,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "• ${peer.region}",
+                    color = TextSecondary,
+                    fontSize = 10.sp
+                )
+            }
+        }
+
+        // Right Column: Latency and Health score pill
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
+            modifier = Modifier.weight(0.7f)
+        ) {
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "${peer.latencyMs}ms",
+                    color = CyberBlue,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    text = "Latency",
+                    color = TextSecondary,
+                    fontSize = 9.sp
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Surface(
+                color = healthBg,
+                shape = RoundedCornerShape(4.dp),
+                border = BorderStroke(0.5.dp, statusColor.copy(alpha = 0.4f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "${peer.healthScore}%",
+                        color = statusColor,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        text = "HEALTH",
+                        color = statusColor.copy(alpha = 0.8f),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 7.sp,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+            }
+        }
+    }
+}

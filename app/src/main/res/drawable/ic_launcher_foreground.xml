@@ -1,0 +1,36 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer defensive ring -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#00B0FF"
+        android:strokeWidth="2"
+        android:pathData="M 54,16 A 38,38 0 1,1 53.9,16" />
+    
+    <!-- Outer orbit nodes indicating garlic routing hops -->
+    <path
+        android:fillColor="#00E676"
+        android:pathData="M 54,16 m -4,0 a 4,4 0 1,1 8,0 a 4,4 0 1,1 -8,0" />
+    <path
+        android:fillColor="#00E676"
+        android:pathData="M 16,54 m -4,0 a 4,4 0 1,1 8,0 a 4,4 0 1,1 -8,0" />
+    <path
+        android:fillColor="#00E676"
+        android:pathData="M 92,54 m -4,0 a 4,4 0 1,1 8,0 a 4,4 0 1,1 -8,0" />
+    <path
+        android:fillColor="#D500F9"
+        android:pathData="M 54,92 m -4,0 a 4,4 0 1,1 8,0 a 4,4 0 1,1 -8,0" />
+
+    <!-- Central security shield representing garlic-routed encrypted channels -->
+    <path
+        android:fillColor="#00E676"
+        android:pathData="M 54,28 C 44,28 36,33 36,44 L 36,60 C 36,72 54,84 54,84 C 54,84 72,72 72,60 L 72,44 C 72,33 64,28 54,28 Z" />
+
+    <!-- Secure lock node inside the shield -->
+    <path
+        android:fillColor="#101216"
+        android:pathData="M 54,40 C 49,40 47,44 47,48 L 47,52 L 44,52 L 44,66 L 64,66 L 64,52 L 61,52 L 61,48 C 61,44 59,40 54,40 Z M 54,43 C 57,43 58,45 58,48 L 58,52 L 50,52 L 50,48 C 50,45 51,43 54,43 Z" />
+</vector>
