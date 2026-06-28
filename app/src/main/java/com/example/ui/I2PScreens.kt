@@ -32,6 +32,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.layout.onSizeChanged
+import kotlin.math.*
 import com.example.data.*
 import com.example.ui.theme.*
 import kotlinx.coroutines.launch
@@ -2106,6 +2112,9 @@ fun GarlicRoutingPathVisualizer(
     isConnected: Boolean,
     isConnecting: Boolean
 ) {
+    var selectedTab by remember { mutableStateOf(0) } // 0: Linear Flow Path, 1: Force-Directed Topology
+    var healthThreshold by remember { mutableStateOf(70f) } // Default 70% connection health threshold
+
     val infiniteTransition = rememberInfiniteTransition(label = "garlic_flow")
     
     // Animate the dash phase shift for connection lines
@@ -2258,233 +2267,294 @@ fun GarlicRoutingPathVisualizer(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Canvas visualization
-            Box(
+            // Modern Cyber Tab Selector
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(120.dp)
-                    .background(CyberBlack, RoundedCornerShape(8.dp))
-                    .border(1.dp, CyberBorder, RoundedCornerShape(8.dp))
+                    .background(CyberBlack, RoundedCornerShape(6.dp))
+                    .border(1.dp, CyberBorder, RoundedCornerShape(6.dp))
+                    .padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val width = size.width
-                    val height = size.height
-                    val paddingX = 40.dp.toPx()
-                    
-                    val nodeCount = nodes.size
-                    val xStep = (width - paddingX * 2) / (nodeCount - 1)
-                    
-                    val nodePositions = nodes.mapIndexed { index, node ->
-                        val x = paddingX + index * xStep
-                        val yOffset = if (index == 0 || index == nodeCount - 1) 0f else {
-                            if (index % 2 == 1) -height * 0.2f else height * 0.2f
-                        }
-                        val y = (height / 2) + yOffset
-                        Pair(node, Offset(x, y))
-                    }
-
-                    // 1. Draw connecting lines between nodes
-                    for (i in 0 until nodePositions.size - 1) {
-                        val start = nodePositions[i].second
-                        val end = nodePositions[i + 1].second
-
-                        // Draw background track line
-                        drawLine(
-                            color = CyberBorder,
-                            start = start,
-                            end = end,
-                            strokeWidth = 2.dp.toPx(),
-                            cap = StrokeCap.Round
-                        )
-
-                        // Draw animated path flow if active or connecting
-                        if (isConnected || isConnecting) {
-                            val lineColor = if (isConnected) {
-                                // Transition from green to purple across the tunnel hops to show encryption to decryption transition
-                                val ratio = i.toFloat() / (nodePositions.size - 2)
-                                lerpColor(CyberGreen, CyberPurple, ratio)
-                            } else {
-                                CyberOrange
-                            }
-
-                            // Flowing dashed line effect
-                            val dashPathEffect = PathEffect.dashPathEffect(
-                                intervals = floatArrayOf(24f, 16f),
-                                phase = -dashPhase
+                val tabs = listOf("Linear Flow Path", "Force-Directed Topology")
+                tabs.forEachIndexed { idx, title ->
+                    val selected = selectedTab == idx
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(
+                                if (selected) CyberBlue.copy(alpha = 0.15f) else Color.Transparent,
+                                RoundedCornerShape(4.dp)
                             )
-
-                            drawLine(
-                                color = lineColor,
-                                start = start,
-                                end = end,
-                                strokeWidth = 3.dp.toPx(),
-                                cap = StrokeCap.Round,
-                                pathEffect = dashPathEffect
+                            .border(
+                                1.dp,
+                                if (selected) CyberBlue else Color.Transparent,
+                                RoundedCornerShape(4.dp)
                             )
-
-                            // 2. Draw moving Garlic Clove packet pulses
-                            val currentPos = start + (end - start) * packetProgress
-                            drawCircle(
-                                color = lineColor,
-                                radius = 4.dp.toPx(),
-                                center = currentPos
-                            )
-                            // Packet outer glow
-                            drawCircle(
-                                color = lineColor.copy(alpha = 0.3f),
-                                radius = 8.dp.toPx() * pulseScale,
-                                center = currentPos
-                            )
-                        }
-                    }
-
-                    // 3. Draw nodes
-                    nodePositions.forEachIndexed { index, pair ->
-                        val node = pair.first
-                        val center = pair.second
-
-                        val nodeColor = when {
-                            !isConnected && !isConnecting -> CyberBorder
-                            isConnecting -> CyberOrange
-                            else -> {
-                                val ratio = index.toFloat() / (nodePositions.size - 1)
-                                lerpColor(CyberGreen, CyberPurple, ratio)
-                            }
-                        }
-
-                        // Node Outer Glow
-                        if (isConnected || isConnecting) {
-                            drawCircle(
-                                color = nodeColor.copy(alpha = 0.2f),
-                                radius = 14.dp.toPx() * pulseScale,
-                                center = center
-                            )
-                        }
-
-                        // Node Border Ring
-                        drawCircle(
-                            color = nodeColor,
-                            radius = 8.dp.toPx(),
-                            center = center,
-                            style = Stroke(width = 2.dp.toPx())
-                        )
-
-                        // Node Solid Center
-                        drawCircle(
-                            color = if (isConnected || isConnecting) CyberBlack else CyberCardBg,
-                            radius = 6.dp.toPx(),
-                            center = center
-                        )
-
-                        drawCircle(
-                            color = nodeColor,
-                            radius = 3.dp.toPx(),
-                            center = center
-                        )
-
-                        // Connection Status Dot Indicator on top-right of node
-                        val badgeOffset = Offset(center.x + 8.dp.toPx(), center.y - 8.dp.toPx())
-                        val statusDotColor = if (isConnected) {
-                            node.health.color
-                        } else if (isConnecting) {
-                            if (index == 0) Color(0xFF00E676) else CyberOrange
-                        } else {
-                            if (index == 0) Color(0xFF00E676) else Color(0xFFFF1744)
-                        }
-
-                        // Status dot outer glow
-                        drawCircle(
-                            color = statusDotColor.copy(alpha = 0.4f),
-                            radius = 5.dp.toPx(),
-                            center = badgeOffset
-                        )
-
-                        // Status dot solid center
-                        drawCircle(
-                            color = statusDotColor,
-                            radius = 3.dp.toPx(),
-                            center = badgeOffset
-                        )
-
-                        // Status dot crisp border line
-                        drawCircle(
-                            color = CyberBlack,
-                            radius = 3.dp.toPx(),
-                            center = badgeOffset,
-                            style = Stroke(width = 0.8.dp.toPx())
+                            .clickable { selectedTab = idx }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (selected) CyberBlue else TextSecondary,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Dynamic Path Description Text/Labels
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                nodes.forEachIndexed { index, node ->
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            node.name,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isConnected) {
-                                val ratio = index.toFloat() / (nodes.size - 1)
-                                lerpColor(CyberGreen, CyberPurple, ratio)
-                            } else {
-                                TextPrimary
-                            },
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            node.description,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary,
-                            textAlign = TextAlign.Center
-                        )
+            if (selectedTab == 0) {
+                // Tab 0: Standard Linear Canvas visualization
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .background(CyberBlack, RoundedCornerShape(8.dp))
+                        .border(1.dp, CyberBorder, RoundedCornerShape(8.dp))
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val width = size.width
+                        val height = size.height
+                        val paddingX = 40.dp.toPx()
                         
-                        // Added Latency & Connection Health indicator badges below descriptions
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            val dotColor = if (isConnected) {
+                        val nodeCount = nodes.size
+                        val xStep = (width - paddingX * 2) / (nodeCount - 1)
+                        
+                        val nodePositions = nodes.mapIndexed { index, node ->
+                            val x = paddingX + index * xStep
+                            val yOffset = if (index == 0 || index == nodeCount - 1) 0f else {
+                                if (index % 2 == 1) -height * 0.2f else height * 0.2f
+                            }
+                            val y = (height / 2) + yOffset
+                            Pair(node, Offset(x, y))
+                        }
+
+                        // 1. Draw connecting lines between nodes
+                        for (i in 0 until nodePositions.size - 1) {
+                            val start = nodePositions[i].second
+                            val end = nodePositions[i + 1].second
+
+                            // Draw background track line
+                            drawLine(
+                                color = CyberBorder,
+                                start = start,
+                                end = end,
+                                strokeWidth = 2.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+
+                            // Draw animated path flow if active or connecting
+                            if (isConnected || isConnecting) {
+                                val lineColor = if (isConnected) {
+                                    // Transition from green to purple across the tunnel hops to show encryption to decryption transition
+                                    val ratio = i.toFloat() / (nodePositions.size - 2)
+                                    lerpColor(CyberGreen, CyberPurple, ratio)
+                                } else {
+                                    CyberOrange
+                                }
+
+                                // Flowing dashed line effect
+                                val dashPathEffect = PathEffect.dashPathEffect(
+                                    intervals = floatArrayOf(24f, 16f),
+                                    phase = -dashPhase
+                                )
+
+                                drawLine(
+                                    color = lineColor,
+                                    start = start,
+                                    end = end,
+                                    strokeWidth = 3.dp.toPx(),
+                                    cap = StrokeCap.Round,
+                                    pathEffect = dashPathEffect
+                                )
+
+                                // 2. Draw moving Garlic Clove packet pulses
+                                val currentPos = start + (end - start) * packetProgress
+                                drawCircle(
+                                    color = lineColor,
+                                    radius = 4.dp.toPx(),
+                                    center = currentPos
+                                )
+                                // Packet outer glow
+                                drawCircle(
+                                    color = lineColor.copy(alpha = 0.3f),
+                                    radius = 8.dp.toPx() * pulseScale,
+                                    center = currentPos
+                                )
+                            }
+                        }
+
+                        // 3. Draw nodes
+                        nodePositions.forEachIndexed { index, pair ->
+                            val node = pair.first
+                            val center = pair.second
+
+                            val nodeColor = when {
+                                !isConnected && !isConnecting -> CyberBorder
+                                isConnecting -> CyberOrange
+                                else -> {
+                                    val ratio = index.toFloat() / (nodePositions.size - 1)
+                                    lerpColor(CyberGreen, CyberPurple, ratio)
+                                }
+                            }
+
+                            // Node Outer Glow
+                            if (isConnected || isConnecting) {
+                                drawCircle(
+                                    color = nodeColor.copy(alpha = 0.2f),
+                                    radius = 14.dp.toPx() * pulseScale,
+                                    center = center
+                                )
+                            }
+
+                            // Node Border Ring
+                            drawCircle(
+                                color = nodeColor,
+                                radius = 8.dp.toPx(),
+                                center = center,
+                                style = Stroke(width = 2.dp.toPx())
+                            )
+
+                            // Node Solid Center
+                            drawCircle(
+                                color = if (isConnected || isConnecting) CyberBlack else CyberCardBg,
+                                radius = 6.dp.toPx(),
+                                center = center
+                            )
+
+                            drawCircle(
+                                color = nodeColor,
+                                radius = 3.dp.toPx(),
+                                center = center
+                            )
+
+                            // Connection Status Dot Indicator on top-right of node
+                            val badgeOffset = Offset(center.x + 8.dp.toPx(), center.y - 8.dp.toPx())
+                            val statusDotColor = if (isConnected) {
                                 node.health.color
                             } else if (isConnecting) {
                                 if (index == 0) Color(0xFF00E676) else CyberOrange
                             } else {
                                 if (index == 0) Color(0xFF00E676) else Color(0xFFFF1744)
                             }
-                            
-                            Box(
-                                modifier = Modifier
-                                    .size(5.dp)
-                                    .background(dotColor, androidx.compose.foundation.shape.CircleShape)
+
+                            // Status dot outer glow
+                            drawCircle(
+                                color = statusDotColor.copy(alpha = 0.4f),
+                                radius = 5.dp.toPx(),
+                                center = badgeOffset
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            val latencyText = when {
-                                !isConnected && !isConnecting -> if (index == 0) "2ms" else "offline"
-                                isConnecting -> if (index == 0) "2ms" else "ping..."
-                                else -> "${node.latencyMs}ms"
-                            }
-                            Text(
-                                text = latencyText,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isConnected) TextPrimary else TextSecondary,
-                                fontSize = 9.sp,
-                                fontFamily = FontFamily.Monospace
+
+                            // Status dot solid center
+                            drawCircle(
+                                color = statusDotColor,
+                                radius = 3.dp.toPx(),
+                                center = badgeOffset
+                            )
+
+                            // Status dot crisp border line
+                            drawCircle(
+                                color = CyberBlack,
+                                radius = 3.dp.toPx(),
+                                center = badgeOffset,
+                                style = Stroke(width = 0.8.dp.toPx())
                             )
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Dynamic Path Description Text/Labels
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    nodes.forEachIndexed { index, node ->
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                node.name,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isConnected) {
+                                    val ratio = index.toFloat() / (nodes.size - 1)
+                                    lerpColor(CyberGreen, CyberPurple, ratio)
+                                } else {
+                                    TextPrimary
+                                },
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                node.description,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+                            
+                            // Added Latency & Connection Health indicator badges below descriptions
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                val dotColor = if (isConnected) {
+                                    node.health.color
+                                } else if (isConnecting) {
+                                    if (index == 0) Color(0xFF00E676) else CyberOrange
+                                } else {
+                                    if (index == 0) Color(0xFF00E676) else Color(0xFFFF1744)
+                                }
+                                
+                                Box(
+                                    modifier = Modifier
+                                        .size(5.dp)
+                                        .background(dotColor, androidx.compose.foundation.shape.CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                val latencyText = when {
+                                    !isConnected && !isConnecting -> if (index == 0) "2ms" else "offline"
+                                    isConnecting -> if (index == 0) "2ms" else "ping..."
+                                    else -> "${node.latencyMs}ms"
+                                }
+                                Text(
+                                    text = latencyText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isConnected) TextPrimary else TextSecondary,
+                                    fontSize = 9.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Tab 1: Interactive Force-Directed Network Graph
+                ForceDirectedCircuitGraph(
+                    nodes = nodes,
+                    isConnected = isConnected,
+                    isConnecting = isConnecting,
+                    healthThreshold = healthThreshold,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Connection Health Highlight Threshold Slider
+                ThresholdSlider(
+                    thresholdValue = healthThreshold,
+                    onValueChange = { healthThreshold = it }
+                )
             }
 
             if (isConnected) {
@@ -2500,6 +2570,482 @@ fun GarlicRoutingPathVisualizer(
                 )
             }
         }
+    }
+}
+
+// Interactive Force-Directed Node State Model
+class ForceNodeState(
+    val id: String,
+    val label: String,
+    val type: String, // "client", "relay", "gate", "destination", "decoy"
+    val healthScore: Int, // 0 to 100
+    val latencyMs: Int,
+    var x: Float,
+    var y: Float,
+    var vx: Float = 0f,
+    var vy: Float = 0f,
+    var isDragging: Boolean = false
+)
+
+data class ForceEdge(
+    val fromId: String,
+    val toId: String,
+    val isMainCircuit: Boolean
+)
+
+@Composable
+fun ForceDirectedCircuitGraph(
+    nodes: List<VisualNode>,
+    isConnected: Boolean,
+    isConnecting: Boolean,
+    healthThreshold: Float,
+    modifier: Modifier = Modifier
+) {
+    // Construct dynamic force-directed node states matching current active garlic path
+    val forceNodes = remember(nodes) {
+        val list = mutableListOf<ForceNodeState>()
+        
+        // 1. Map main routing path nodes
+        nodes.forEachIndexed { idx, node ->
+            val angle = (idx.toFloat() / nodes.size) * Math.PI
+            val r = 100f
+            val startX = 300f + (r * cos(angle)).toFloat()
+            val startY = 130f + (r * sin(angle)).toFloat()
+            
+            val hScore = when (node.health) {
+                NodeHealth.EXCELLENT -> 98
+                NodeHealth.GOOD -> 85
+                NodeHealth.DEGRADED -> 60
+                NodeHealth.OFFLINE -> 0
+            }
+            
+            list.add(
+                ForceNodeState(
+                    id = "main_$idx",
+                    label = node.name,
+                    type = node.type,
+                    healthScore = hScore,
+                    latencyMs = node.latencyMs,
+                    x = startX,
+                    y = startY
+                )
+            )
+        }
+        
+        // 2. Add 3 decoy global network nodes to represent the background decentralized mesh
+        val decoyData = listOf(
+            Triple("Decoy-Alpha", 88, 92),
+            Triple("Decoy-Beta", 52, 175),
+            Triple("Decoy-Gamma", 94, 34)
+        )
+        
+        decoyData.forEachIndexed { idx, data ->
+            val angle = (idx.toFloat() / decoyData.size) * 2 * Math.PI + Math.PI / 4
+            val r = 160f
+            val startX = 300f + (r * cos(angle)).toFloat()
+            val startY = 130f + (r * sin(angle)).toFloat()
+            
+            list.add(
+                ForceNodeState(
+                    id = "decoy_$idx",
+                    label = data.first,
+                    type = "decoy",
+                    healthScore = data.second,
+                    latencyMs = data.third,
+                    x = startX,
+                    y = startY
+                )
+            )
+        }
+        
+        list
+    }
+
+    // Build spring-connection edges
+    val forceEdges = remember(nodes) {
+        val edges = mutableListOf<ForceEdge>()
+        
+        // Main path chain
+        for (i in 0 until nodes.size - 1) {
+            edges.add(ForceEdge("main_$i", "main_${i + 1}", isMainCircuit = true))
+        }
+        
+        // Decoy network background link meshes
+        edges.add(ForceEdge("decoy_0", "main_0", isMainCircuit = false))
+        if (nodes.size > 2) {
+            edges.add(ForceEdge("decoy_1", "main_2", isMainCircuit = false))
+        } else {
+            edges.add(ForceEdge("decoy_1", "main_1", isMainCircuit = false))
+        }
+        edges.add(ForceEdge("decoy_2", "decoy_0", isMainCircuit = false))
+        edges.add(ForceEdge("decoy_2", "main_${nodes.size - 1}", isMainCircuit = false))
+        
+        edges
+    }
+
+    var triggerUpdate by remember { mutableStateOf(0) }
+    var canvasSize by remember { mutableStateOf(IntSize(600, 300)) }
+
+    // Spring physics loop running natively at ~60fps
+    LaunchedEffect(forceNodes, canvasSize) {
+        val kAttractive = 0.05f // spring stiffness
+        val kRepulsive = 32000f // repulsion strength
+        val kGravity = 0.02f // pull strength to center
+        val dRate = 0.83f // damping velocity friction
+        val restLengthMain = 100f
+        val restLengthDecoy = 130f
+        
+        while (true) {
+            val cx = canvasSize.width / 2f
+            val cy = canvasSize.height / 2f
+            
+            // 1. Node Repulsion
+            for (i in forceNodes.indices) {
+                val ni = forceNodes[i]
+                if (ni.isDragging) continue
+                
+                var fx = 0f
+                var fy = 0f
+                
+                for (j in forceNodes.indices) {
+                    if (i == j) continue
+                    val nj = forceNodes[j]
+                    val dx = ni.x - nj.x
+                    val dy = ni.y - nj.y
+                    val distSq = dx * dx + dy * dy + 1f
+                    val dist = sqrt(distSq)
+                    
+                    if (dist < 320f) {
+                        val force = kRepulsive / distSq
+                        fx += (dx / dist) * force
+                        fy += (dy / dist) * force
+                    }
+                }
+                
+                // 2. Link attraction
+                forceEdges.forEach { edge ->
+                    if (edge.fromId == ni.id || edge.toId == ni.id) {
+                        val otherId = if (edge.fromId == ni.id) edge.toId else edge.fromId
+                        val otherNode = forceNodes.find { it.id == otherId }
+                        if (otherNode != null) {
+                            val dx = ni.x - otherNode.x
+                            val dy = ni.y - otherNode.y
+                            val dist = sqrt(dx * dx + dy * dy + 1f)
+                            val restL = if (edge.isMainCircuit) restLengthMain else restLengthDecoy
+                            val force = -kAttractive * (dist - restL)
+                            fx += (dx / dist) * force
+                            fy += (dy / dist) * force
+                        }
+                    }
+                }
+                
+                // 3. Central gravity
+                val dcx = ni.x - cx
+                val dcy = ni.y - cy
+                fx -= dcx * kGravity
+                fy -= dcy * kGravity
+                
+                // Apply final updates
+                ni.vx = (ni.vx + fx) * dRate
+                ni.vy = (ni.vy + fy) * dRate
+                
+                ni.x += ni.vx
+                ni.y += ni.vy
+                
+                // Keep strictly inside Canvas boundaries
+                ni.x = ni.x.coerceIn(25f, canvasSize.width.toFloat() - 25f)
+                ni.y = ni.y.coerceIn(25f, canvasSize.height.toFloat() - 25f)
+            }
+            
+            triggerUpdate++
+            kotlinx.coroutines.delay(16)
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(240.dp)
+            .background(CyberBlack, RoundedCornerShape(8.dp))
+            .border(1.dp, CyberBorder, RoundedCornerShape(8.dp))
+            .pointerInput(forceNodes, canvasSize) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        val tapRadius = 32.dp.toPx()
+                        val tapped = forceNodes.find {
+                            val dx = it.x - offset.x
+                            val dy = it.y - offset.y
+                            dx * dx + dy * dy < tapRadius * tapRadius
+                        }
+                        if (tapped != null) {
+                            tapped.isDragging = true
+                        }
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        val active = forceNodes.find { it.isDragging }
+                        if (active != null) {
+                            active.x += dragAmount.x
+                            active.y += dragAmount.y
+                            active.x = active.x.coerceIn(25f, canvasSize.width.toFloat() - 25f)
+                            active.y = active.y.coerceIn(25f, canvasSize.height.toFloat() - 25f)
+                        }
+                    },
+                    onDragEnd = {
+                        forceNodes.forEach { it.isDragging = false }
+                    },
+                    onDragCancel = {
+                        forceNodes.forEach { it.isDragging = false }
+                    }
+                )
+            }
+    ) {
+        val infiniteTransition = rememberInfiniteTransition(label = "force_pulse")
+        val dashPhase by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 100f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "dash_phase"
+        )
+        val pulseScale by infiniteTransition.animateFloat(
+            initialValue = 0.8f,
+            targetValue = 1.3f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulse_scale"
+        )
+
+        val tickCount = triggerUpdate
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .onSizeChanged { size ->
+                    if (size.width > 0 && size.height > 0) {
+                        canvasSize = size
+                    }
+                }
+        ) {
+            val _t = tickCount // Triggers Canvas redraw on physics ticks
+            
+            // 1. Draw connections (links)
+            forceEdges.forEach { edge ->
+                val fromNode = forceNodes.find { it.id == edge.fromId }
+                val toNode = forceNodes.find { it.id == edge.toId }
+                
+                if (fromNode != null && toNode != null) {
+                    val start = Offset(fromNode.x, fromNode.y)
+                    val end = Offset(toNode.x, toNode.y)
+                    
+                    // Background link line
+                    drawLine(
+                        color = if (edge.isMainCircuit) CyberBorder.copy(alpha = 0.6f) else CyberBorder.copy(alpha = 0.25f),
+                        start = start,
+                        end = end,
+                        strokeWidth = if (edge.isMainCircuit) 2.dp.toPx() else 1.2.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                    
+                    // Draw animated Garlic Layer streams if circuit is active
+                    if (edge.isMainCircuit && (isConnected || isConnecting)) {
+                        val isFromHealthy = fromNode.healthScore >= healthThreshold
+                        val isToHealthy = toNode.healthScore >= healthThreshold
+                        val lineHighlightColor = if (!isFromHealthy || !isToHealthy) {
+                            CyberRed // RED Alert status for unhealthy links
+                        } else if (isConnected) {
+                            CyberGreen // Stable Encryption Green
+                        } else {
+                            CyberOrange // Assembling
+                        }
+
+                        val dashPathEffect = PathEffect.dashPathEffect(
+                            intervals = floatArrayOf(20f, 15f),
+                            phase = -dashPhase
+                        )
+
+                        drawLine(
+                            color = lineHighlightColor,
+                            start = start,
+                            end = end,
+                            strokeWidth = 2.5.dp.toPx(),
+                            cap = StrokeCap.Round,
+                            pathEffect = dashPathEffect
+                        )
+                    }
+                }
+            }
+            
+            // 2. Draw nodes & interactive visual details
+            forceNodes.forEach { fNode ->
+                val center = Offset(fNode.x, fNode.y)
+                val isBelowThreshold = fNode.healthScore < healthThreshold
+                
+                // Color mapping: solid red if health drops below specific threshold
+                val baseNodeColor = if (isBelowThreshold) {
+                    CyberRed
+                } else {
+                    when (fNode.type) {
+                        "client" -> CyberGreen
+                        "destination" -> CyberPurple
+                        "decoy" -> CyberBlue.copy(alpha = 0.7f)
+                        else -> CyberBlue
+                    }
+                }
+                
+                // Outer halo glow
+                drawCircle(
+                    color = baseNodeColor.copy(alpha = if (isBelowThreshold) 0.35f else 0.18f),
+                    radius = (14.dp.toPx()) * (if (isBelowThreshold) pulseScale * 1.2f else pulseScale),
+                    center = center
+                )
+                
+                // Warning Pulse Ring for Unhealthy/Degraded nodes
+                if (isBelowThreshold) {
+                    drawCircle(
+                        color = CyberRed,
+                        radius = 18.dp.toPx() * pulseScale,
+                        center = center,
+                        style = Stroke(width = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
+                    )
+                }
+
+                // Node border circle outline
+                drawCircle(
+                    color = baseNodeColor,
+                    radius = 9.dp.toPx(),
+                    center = center,
+                    style = Stroke(width = 2.dp.toPx())
+                )
+                
+                // Black core center
+                drawCircle(
+                    color = CyberBlack,
+                    radius = 7.dp.toPx(),
+                    center = center
+                )
+                
+                // Small solid core dot
+                drawCircle(
+                    color = baseNodeColor,
+                    radius = 4.dp.toPx(),
+                    center = center
+                )
+
+                // Render Labels and Health percentages
+                drawContext.canvas.nativeCanvas.apply {
+                    val textPaint = android.graphics.Paint().apply {
+                        color = if (isBelowThreshold) android.graphics.Color.RED else android.graphics.Color.WHITE
+                        textSize = 9.dp.toPx()
+                        isAntiAlias = true
+                        typeface = android.graphics.Typeface.MONOSPACE
+                        textAlign = android.graphics.Paint.Align.CENTER
+                    }
+                    val subPaint = android.graphics.Paint().apply {
+                        color = if (isBelowThreshold) android.graphics.Color.argb(220, 255, 70, 70) else android.graphics.Color.GRAY
+                        textSize = 7.5.dp.toPx()
+                        isAntiAlias = true
+                        typeface = android.graphics.Typeface.MONOSPACE
+                        textAlign = android.graphics.Paint.Align.CENTER
+                    }
+                    
+                    // Node Name Label
+                    drawText(
+                        fNode.label,
+                        fNode.x,
+                        fNode.y - 14.dp.toPx(),
+                        textPaint
+                    )
+                    
+                    // Node HP & Latency Description
+                    val hpLabel = if (isBelowThreshold) "HP: ${fNode.healthScore}% [CRIT]" else "${fNode.healthScore}% HP | ${fNode.latencyMs}ms"
+                    drawText(
+                        hpLabel,
+                        fNode.x,
+                        fNode.y + 23.dp.toPx(),
+                        subPaint
+                    )
+                }
+            }
+        }
+        
+        // Dynamic bottom-right helper overlay
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(8.dp)
+                .background(CyberBlack.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
+                .border(0.5.dp, CyberBorder, RoundedCornerShape(4.dp))
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text(
+                "Drag nodes to manipulate layout structure",
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 8.sp,
+                color = TextSecondary,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+    }
+}
+
+@Composable
+fun ThresholdSlider(
+    thresholdValue: Float,
+    onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = "Alert Threshold Indicator",
+                    tint = CyberRed,
+                    modifier = Modifier.size(13.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "BOTTLE-NECK HIGHLIGHT THRESHOLD: ${thresholdValue.toInt()}% HP",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CyberRed,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp
+                )
+            }
+            Text(
+                text = "Flags nodes in RED below this HP",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextSecondary,
+                fontSize = 8.sp
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(2.dp))
+        
+        Slider(
+            value = thresholdValue,
+            onValueChange = onValueChange,
+            valueRange = 0f..100f,
+            colors = SliderDefaults.colors(
+                thumbColor = CyberRed,
+                activeTrackColor = CyberRed,
+                inactiveTrackColor = CyberBorder
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .testTag("health_threshold_slider")
+        )
     }
 }
 
