@@ -50,6 +50,17 @@ class MainActivity : ComponentActivity() {
                 val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                 var currentTab by remember { mutableStateOf(AppTab.ROUTER) }
                 val routerState by viewModel.routerState.collectAsState()
+                var showProxySettingsDialog by remember { mutableStateOf(false) }
+
+                LaunchedEffect(viewModel) {
+                    viewModel.activeTabFlow.collect { tabName ->
+                        try {
+                            currentTab = AppTab.valueOf(tabName)
+                        } catch (e: Exception) {
+                            // ignore
+                        }
+                    }
+                }
 
                 ModalNavigationDrawer(
                     drawerState = drawerState,
@@ -136,6 +147,18 @@ class MainActivity : ComponentActivity() {
                                         }
 
                                         IconButton(
+                                            onClick = { showProxySettingsDialog = true },
+                                            modifier = Modifier.size(36.dp).testTag("network_settings_button")
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Settings,
+                                                contentDescription = "Configure Proxy Settings",
+                                                tint = CyberBlue,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+
+                                        IconButton(
                                             onClick = {
                                                 coroutineScope.launch {
                                                     if (drawerState.isClosed) drawerState.open() else drawerState.close()
@@ -199,6 +222,13 @@ class MainActivity : ComponentActivity() {
                                 AppTab.IDENTITY -> IdentityScreen(viewModel = viewModel)
                             }
                         }
+                    }
+
+                    if (showProxySettingsDialog) {
+                        ProxySettingsDialog(
+                            viewModel = viewModel,
+                            onDismiss = { showProxySettingsDialog = false }
+                        )
                     }
                 }
             }

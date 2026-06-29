@@ -4,9 +4,16 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.OutputStream
+import java.net.InetSocketAddress
+import java.net.Socket
 import kotlin.random.Random
 
 data class RouterState(
@@ -21,7 +28,18 @@ data class RouterState(
     val statusText: String = "Offline",
     val latencyMs: Int = 0,
     val packetLoss: Float = 0f,
-    val activePeerCount: Int = 0
+    val activePeerCount: Int = 0,
+    val isRealI2p: Boolean = false,
+    val samHost: String = "127.0.0.1",
+    val samPort: Int = 7656,
+    val realDestination: String = "",
+    val httpProxyEnabled: Boolean = true,
+    val httpProxyHost: String = "127.0.0.1",
+    val httpProxyPort: Int = 4444,
+    val socksProxyEnabled: Boolean = true,
+    val socksProxyHost: String = "127.0.0.1",
+    val socksProxyPort: Int = 4447,
+    val systemWideProxy: Boolean = false
 )
 
 data class BrowserTab(
@@ -95,6 +113,18 @@ data class VpsState(
     val bandwidthUsageMbps: Float = 0f
 )
 
+data class GpsEmulatorState(
+    val latitude: Double = 46.2044, // Geneva (Default)
+    val longitude: Double = 6.1432,
+    val region: String = "Geneva, Switzerland",
+    val speedKmh: Float = 0f,
+    val altitudeM: Int = 421,
+    val signalStrengthDbm: Int = -62,
+    val satCount: Int = 14,
+    val localIp: String = "194.230.12.83",
+    val localIsp: String = "Swiss Crypt-Services Ltd"
+)
+
 class I2PViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getDatabase(application)
@@ -157,11 +187,153 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
     private val _vpsState = MutableStateFlow(VpsState())
     val vpsState: StateFlow<VpsState> = _vpsState.asStateFlow()
 
+    private val _gpsState = MutableStateFlow(GpsEmulatorState())
+    val gpsState: StateFlow<GpsEmulatorState> = _gpsState.asStateFlow()
+
     private val _networkAlerts = MutableSharedFlow<String>(extraBufferCapacity = 16)
     val networkAlerts: SharedFlow<String> = _networkAlerts.asSharedFlow()
 
+    private val _activeTabFlow = MutableSharedFlow<String>(extraBufferCapacity = 16)
+    val activeTabFlow: SharedFlow<String> = _activeTabFlow.asSharedFlow()
+
+    fun navigateToTab(tabName: String) {
+        viewModelScope.launch {
+            _activeTabFlow.emit(tabName)
+        }
+    }
+
     private var lastLatencyExceeded = false
     private var lastLossExceeded = false
+
+    private var samSocket: Socket? = null
+
+    private suspend fun tryRealSamConnect(host: String, port: Int): String? {
+        return withContext(Dispatchers.IO) {
+            var socket: Socket? = null
+            try {
+                socket = Socket()
+                socket.connect(InetSocketAddress(host, port), 2000)
+                val writer = socket.getOutputStream()
+                val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+
+                writer.write("HELLO VERSION MIN=3.0 MAX=3.1\n".toByteArray())
+                writer.flush()
+                val helloLine = reader.readLine() ?: ""
+                if (!helloLine.startsWith("HELLO REPLY") || !helloLine.contains("RESULT=OK")) {
+                    socket.close()
+                    return@withContext null
+                }
+
+                writer.write("SESSION CREATE STYLE=STREAM ID=AIS_I2P_SESSION DESTINATION=TRANSIENT\n".toByteArray())
+                writer.flush()
+                val sessionLine = reader.readLine() ?: ""
+                if (!sessionLine.startsWith("SESSION STATUS") || !sessionLine.contains("RESULT=OK")) {
+                    socket.close()
+                    return@withContext null
+                }
+
+                val destKeyword = "DESTINATION="
+                val destIndex = sessionLine.indexOf(destKeyword)
+                if (destIndex != -1) {
+                    val dest = sessionLine.substring(destIndex + destKeyword.length).trim()
+                    samSocket = socket
+                    return@withContext dest
+                }
+            } catch (e: Exception) {
+                try { socket?.close() } catch (ex: Exception) {}
+            }
+            null
+        }
+    }
+
+    suspend fun resolveRealI2pName(name: String): String? {
+        val socket = samSocket ?: return null
+        return withContext(Dispatchers.IO) {
+            try {
+                val writer = socket.getOutputStream()
+                val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+                writer.write("NAMELOOKUP NAME=$name\n".toByteArray())
+                writer.flush()
+                val response = reader.readLine() ?: ""
+                if (response.startsWith("NAMELOOKUP REPLY") && response.contains("RESULT=OK")) {
+                    val valueKeyword = "VALUE="
+                    val idx = response.indexOf(valueKeyword)
+                    if (idx != -1) {
+                        return@withContext response.substring(idx + valueKeyword.length).trim()
+                    }
+                }
+            } catch (e: Exception) {
+                // Socket closed or error
+            }
+            null
+        }
+    }
+
+    fun updateSamConfig(host: String, port: Int) {
+        _routerState.update { it.copy(samHost = host, samPort = port) }
+        viewModelScope.launch {
+            repository.addLog("ROUTER", "SAM configuration updated to $host:$port", "INFO")
+        }
+    }
+
+    fun updateProxySettings(
+        httpEnabled: Boolean,
+        httpHost: String,
+        httpPort: Int,
+        socksEnabled: Boolean,
+        socksHost: String,
+        socksPort: Int,
+        systemWide: Boolean
+    ) {
+        _routerState.update {
+            it.copy(
+                httpProxyEnabled = httpEnabled,
+                httpProxyHost = httpHost,
+                httpProxyPort = httpPort,
+                socksProxyEnabled = socksEnabled,
+                socksProxyHost = socksHost,
+                socksProxyPort = socksPort,
+                systemWideProxy = systemWide
+            )
+        }
+
+        viewModelScope.launch {
+            repository.addLog("PROXY", "Network proxy settings updated.", "SUCCESS")
+            
+            // Apply Java System proxy configurations
+            withContext(Dispatchers.IO) {
+                try {
+                    if (httpEnabled) {
+                        System.setProperty("http.proxyHost", httpHost)
+                        System.setProperty("http.proxyPort", httpPort.toString())
+                        System.setProperty("https.proxyHost", httpHost)
+                        System.setProperty("https.proxyPort", httpPort.toString())
+                    } else {
+                        System.clearProperty("http.proxyHost")
+                        System.clearProperty("http.proxyPort")
+                        System.clearProperty("https.proxyHost")
+                        System.clearProperty("https.proxyPort")
+                    }
+
+                    if (socksEnabled) {
+                        System.setProperty("socksProxyHost", socksHost)
+                        System.setProperty("socksProxyPort", socksPort.toString())
+                    } else {
+                        System.clearProperty("socksProxyHost")
+                        System.clearProperty("socksProxyPort")
+                    }
+                    
+                    if (systemWide) {
+                        repository.addLog("PROXY", "System-wide JVM network routing enabled.", "SUCCESS")
+                    } else {
+                        repository.addLog("PROXY", "System-wide JVM network routing bypassed.", "INFO")
+                    }
+                } catch (e: Exception) {
+                    repository.addLog("PROXY", "Error applying Java system properties: ${e.message}", "WARN")
+                }
+            }
+        }
+    }
 
     fun toggleAccessory(id: String) {
         _activeAccessories.update { current ->
@@ -174,6 +346,29 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
         val status = if (_activeAccessories.value.contains(id)) "ENABLED" else "DISABLED"
         viewModelScope.launch {
             repository.addLog("SECURITY", "Accessory [$id] status changed to $status.", "INFO")
+        }
+    }
+
+    fun updateSpoofedGps(
+        latitude: Double,
+        longitude: Double,
+        region: String,
+        speed: Float = 0f,
+        altitude: Int = 421,
+        localIp: String = "194.230.12.83",
+        localIsp: String = "Swiss Crypt-Services Ltd"
+    ) {
+        _gpsState.value = GpsEmulatorState(
+            latitude = latitude,
+            longitude = longitude,
+            region = region,
+            speedKmh = speed,
+            altitudeM = altitude,
+            localIp = localIp,
+            localIsp = localIsp
+        )
+        viewModelScope.launch {
+            repository.addLog("GPS_EMULATOR", "Spoofed position injected: ($latitude, $longitude) | Region: $region", "SUCCESS")
         }
     }
 
@@ -323,46 +518,105 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
         if (_routerState.value.isConnected || _routerState.value.isConnecting) return
 
         viewModelScope.launch {
-            _routerState.update { it.copy(isConnecting = true, statusText = "Initializing Garlic Router Engine...") }
-            repository.addLog("ROUTER", "Starting simulated I2P garlic router daemon...", "INFO")
-            delay(1200)
-
-            _routerState.update { it.copy(connectionProgress = 0.25f, statusText = "Resolving NetDB profiles...") }
-            repository.addLog("NETDB", "Requesting NetDB reseeding from active routers...", "INFO")
-            delay(1000)
-
-            _routerState.update { it.copy(connectionProgress = 0.5f, statusText = "Configuring $routerState.value.tunnelHops-hop garlic tunnels...") }
-            repository.addLog("TUNNEL", "Building outbound and inbound tunnel leaseSets with ${_routerState.value.tunnelHops} hops.", "ROUTING")
-            delay(1200)
-
-            _routerState.update { it.copy(connectionProgress = 0.85f, statusText = "Exchanging leaseSet descriptors...") }
-            repository.addLog("GARLIC", "Signed leaseSet descriptors published securely.", "SUCCESS")
-            delay(800)
-
-            _routerState.update {
-                val hops = it.tunnelHops
-                val initialLatency = hops * 135 + Random.nextInt(5, 25)
-                val initialLoss = hops * 0.15f + Random.nextFloat() * 0.1f
-                val initialPeers = hops * 2 + Random.nextInt(1, 3)
-
-                it.copy(
-                    isConnected = true,
-                    isConnecting = false,
-                    connectionProgress = 1.0f,
-                    activeTunnels = 16,
-                    knownPeers = 512,
-                    statusText = "Connected securely to I2P network",
-                    latencyMs = initialLatency,
-                    packetLoss = initialLoss,
-                    activePeerCount = initialPeers
+            val host = _routerState.value.samHost
+            val port = _routerState.value.samPort
+            _routerState.update { it.copy(isConnecting = true, statusText = "Checking real SAM Bridge on $host:$port...") }
+            repository.addLog("ROUTER", "Probing real SAM bridge on $host:$port...", "INFO")
+            
+            // Try connecting to real SAM API
+            val realDest = tryRealSamConnect(host, port)
+            
+            if (realDest != null) {
+                _routerState.update { it.copy(connectionProgress = 0.5f, statusText = "SAM v3.1 Handshake OK! Registering local Transient Session...") }
+                repository.addLog("ROUTER", "Real SAM API connected! Handshake OK.", "SUCCESS")
+                delay(800)
+                
+                _routerState.update { it.copy(connectionProgress = 0.85f, statusText = "Real Session Active. Syncing LeaseSets...") }
+                repository.addLog("ROUTER", "Local Transient Destination registered successfully.", "SUCCESS")
+                delay(600)
+                
+                val shortenedAddress = if (realDest.length > 16) realDest.take(8) + "..." + realDest.takeLast(8) + ".i2p" else realDest
+                
+                _routerState.update {
+                    it.copy(
+                        isConnected = true,
+                        isConnecting = false,
+                        connectionProgress = 1.0f,
+                        isRealI2p = true,
+                        realDestination = realDest,
+                        activeTunnels = 8,
+                        knownPeers = 350,
+                        statusText = "Connected to REAL I2P via SAM API",
+                        latencyMs = 280,
+                        packetLoss = 0.05f,
+                        activePeerCount = 12
+                    )
+                }
+                
+                val currentIdName = _activeIdentity.value?.name ?: "Real SAM Identity"
+                val realId = Identity(
+                    id = _activeIdentity.value?.id ?: 9999L,
+                    name = currentIdName,
+                    publicKeyBase64 = "REAL_SAM_PUBLIC_KEY",
+                    privateKeyBase64 = "REAL_SAM_PRIVATE_KEY",
+                    i2pAddress = shortenedAddress,
+                    fullDestination = realDest
                 )
+                _activeIdentity.value = realId
+                
+                repository.addLog("ROUTER", "I2P Garlic Router fully connected via real SAM API. Address: $shortenedAddress", "SUCCESS")
+                _networkAlerts.tryEmit("[I2P SYSTEM] Connected to REAL I2P network!")
+            } else {
+                repository.addLog("ROUTER", "No local SAM Bridge active on $host:$port. Launching virtual I2P network engine...", "INFO")
+                _routerState.update { it.copy(connectionProgress = 0.15f, statusText = "Initializing Garlic Router Engine...") }
+                repository.addLog("ROUTER", "Starting simulated I2P garlic router daemon...", "INFO")
+                delay(1000)
+
+                _routerState.update { it.copy(connectionProgress = 0.4f, statusText = "Resolving NetDB profiles...") }
+                repository.addLog("NETDB", "Requesting NetDB reseeding from active routers...", "INFO")
+                delay(800)
+
+                _routerState.update { it.copy(connectionProgress = 0.65f, statusText = "Configuring ${_routerState.value.tunnelHops}-hop garlic tunnels...") }
+                repository.addLog("TUNNEL", "Building outbound and inbound tunnel leaseSets with ${_routerState.value.tunnelHops} hops.", "ROUTING")
+                delay(1000)
+
+                _routerState.update { it.copy(connectionProgress = 0.85f, statusText = "Exchanging leaseSet descriptors...") }
+                repository.addLog("GARLIC", "Signed leaseSet descriptors published securely.", "SUCCESS")
+                delay(600)
+
+                _routerState.update {
+                    val hops = it.tunnelHops
+                    val initialLatency = hops * 135 + Random.nextInt(5, 25)
+                    val initialLoss = hops * 0.15f + Random.nextFloat() * 0.1f
+                    val initialPeers = hops * 2 + Random.nextInt(1, 3)
+
+                    it.copy(
+                        isConnected = true,
+                        isConnecting = false,
+                        connectionProgress = 1.0f,
+                        isRealI2p = false,
+                        realDestination = "",
+                        activeTunnels = 16,
+                        knownPeers = 512,
+                        statusText = "Connected securely to I2P network",
+                        latencyMs = initialLatency,
+                        packetLoss = initialLoss,
+                        activePeerCount = initialPeers
+                    )
+                }
+                repository.addLog("ROUTER", "I2P Garlic Router fully connected and listening.", "SUCCESS")
             }
-            repository.addLog("ROUTER", "I2P Garlic Router fully connected and listening.", "SUCCESS")
         }
     }
 
     fun disconnectRouter() {
         viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    samSocket?.close()
+                } catch (e: Exception) {}
+                samSocket = null
+            }
             _routerState.update {
                 it.copy(
                     isConnected = false,
@@ -375,9 +629,17 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
                     statusText = "Offline",
                     latencyMs = 0,
                     packetLoss = 0f,
-                    activePeerCount = 0
+                    activePeerCount = 0,
+                    isRealI2p = false,
+                    realDestination = ""
                 )
             }
+            
+            // Re-fetch standard identity to clean up real I2P address
+            repository.allIdentities.firstOrNull()?.firstOrNull()?.let {
+                _activeIdentity.value = it
+            }
+            
             repository.addLog("ROUTER", "Garlic Router stopped.", "WARN")
         }
     }
@@ -401,8 +663,26 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             _browserTab.update { it.copy(isLoading = true, url = cleanUrl) }
-            repository.addLog("PROXY", "HTTP Outbound Proxy routing request to $cleanUrl", "INFO")
+            val state = _routerState.value
+            val proxyMsg = when {
+                state.httpProxyEnabled && state.socksProxyEnabled -> "HTTP (${state.httpProxyHost}:${state.httpProxyPort}) + SOCKS (${state.socksProxyHost}:${state.socksProxyPort})"
+                state.httpProxyEnabled -> "HTTP (${state.httpProxyHost}:${state.httpProxyPort})"
+                state.socksProxyEnabled -> "SOCKS5 (${state.socksProxyHost}:${state.socksProxyPort})"
+                else -> "Direct Garlic Routing"
+            }
+            repository.addLog("PROXY", "Routing browser request to $cleanUrl via $proxyMsg", "INFO")
             
+            if (_routerState.value.isRealI2p) {
+                val host = cleanUrl.substringAfter("://").substringBefore("/")
+                repository.addLog("SAM", "Resolving domain '$host' using SAM NAMELOOKUP...", "INFO")
+                val resolvedDest = resolveRealI2pName(host)
+                if (resolvedDest != null) {
+                    repository.addLog("SAM", "Resolved '$host' to: ${resolvedDest.take(16)}...", "SUCCESS")
+                } else {
+                    repository.addLog("SAM", "SAM resolution failed for '$host' (offline or not in NetDB)", "WARN")
+                }
+            }
+
             // Simulating dynamic latency and garlic routing steps based on active accessories
             var routingDelay = 1500L
             val accessories = _activeAccessories.value
@@ -415,6 +695,7 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
             delay(routingDelay)
 
             val pageTitle = when {
+                cleanUrl.contains("127.0.0.1:7657") || cleanUrl.contains("localhost:7657") || cleanUrl.contains("router-console") -> "I2P Router Console WebUI"
                 cleanUrl.contains("i2p-project") -> "I2P Project Homepage"
                 cleanUrl.contains("anon.chat") -> "AnonIRC Relay Chat"
                 cleanUrl.contains("wiki.leaks") -> "Invisible Cryptic Wiki"
