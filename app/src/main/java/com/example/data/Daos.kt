@@ -72,3 +72,19 @@ interface TrustedKeyDao {
     suspend fun deleteTrustedKey(key: TrustedKey)
 }
 
+@Dao
+interface ContactDao {
+    @Query("SELECT * FROM contacts ORDER BY name ASC")
+    fun getAllContacts(): Flow<List<Contact>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertContact(contact: Contact)
+
+    @Delete
+    suspend fun deleteContact(contact: Contact)
+
+    @Query("DELETE FROM contacts")
+    suspend fun clearAllContacts()
+}
+
+

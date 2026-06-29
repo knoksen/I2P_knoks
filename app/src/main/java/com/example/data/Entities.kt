@@ -9,7 +9,8 @@ data class Bookmark(
     val title: String,
     val url: String,
     val iconName: String = "public",
-    val colorHex: String = "#00B0FF"
+    val colorHex: String = "#00B0FF",
+    val safetyLevel: String = "SAFE"
 )
 
 @Entity(tableName = "identities")
@@ -53,4 +54,16 @@ data class TrustedKey(
     val addedTimestamp: Long = System.currentTimeMillis(),
     val sessionTagCount: Int = 100 // Garlic routing ephemeral session tags remaining
 )
+
+@Entity(tableName = "contacts")
+data class Contact(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val address: String, // e.g., "comrade.i2p", "pm@gmail.com", "+15551234"
+    val type: String, // "SECURE_I2P", "GOOGLE_CHAT", "SMS"
+    val status: String = "ONLINE", // "ONLINE", "OFFLINE"
+    val avatarColorHex: String = "#00B0FF",
+    val lastActiveTimestamp: Long = System.currentTimeMillis()
+)
+
 

@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -33,6 +34,7 @@ import com.example.ui.theme.*
 enum class AppTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     ROUTER("Router", Icons.Default.Dns),
     BROWSER("Browser", Icons.Default.Language),
+    VPN_VPS("VPN & VPS", Icons.Default.VpnLock),
     COMMS("Secure Chat", Icons.Default.Forum),
     IDENTITY("Identity", Icons.Default.Fingerprint)
 }
@@ -151,6 +153,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                                 Divider(color = CyberBorder)
+                                GlobalVpnStatusBar(viewModel = viewModel, onVpnSettingsClick = { currentTab = AppTab.VPN_VPS })
                             }
                         },
                         bottomBar = {
@@ -191,6 +194,7 @@ class MainActivity : ComponentActivity() {
                             when (currentTab) {
                                 AppTab.ROUTER -> RouterScreen(viewModel = viewModel)
                                 AppTab.BROWSER -> BrowserScreen(viewModel = viewModel)
+                                AppTab.VPN_VPS -> VpnVpsScreen(viewModel = viewModel)
                                 AppTab.COMMS -> CommunicationsScreen(viewModel = viewModel)
                                 AppTab.IDENTITY -> IdentityScreen(viewModel = viewModel)
                             }
@@ -460,4 +464,90 @@ fun NodeHistoryItem(node: AccessedNode) {
             }
         }
     }
+}
+
+@Composable
+fun GlobalVpnStatusBar(
+    viewModel: I2PViewModel,
+    onVpnSettingsClick: () -> Unit
+) {
+    val vpnState by viewModel.vpnState.collectAsState()
+    
+    val statusColor = when (vpnState.status) {
+        VpnStatus.CONNECTED -> CyberGreen
+        VpnStatus.CONNECTING -> CyberOrange
+        VpnStatus.DISCONNECTED -> TextSecondary
+    }
+    
+    val statusText = when (vpnState.status) {
+        VpnStatus.CONNECTED -> "SECURE • ${vpnState.selectedVpn}"
+        VpnStatus.CONNECTING -> "CONNECTING..."
+        VpnStatus.DISCONNECTED -> "DISCONNECTED (Private VPN Recommended)"
+    }
+    
+    val statsText = if (vpnState.status == VpnStatus.CONNECTED) {
+        String.format(java.util.Locale.US, " | %.2f MB | %02d:%02d", 
+            vpnState.bytesTransmitted / (1024f * 1024f), 
+            vpnState.connectedDurationSeconds / 60, 
+            vpnState.connectedDurationSeconds % 60)
+    } else ""
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CyberBlack)
+            .clickable { onVpnSettingsClick() }
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.VpnLock,
+                contentDescription = "VPN Status Indicator",
+                tint = statusColor,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = "VPN Status:",
+                fontSize = 10.sp,
+                color = TextSecondary,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = statusText + statsText,
+                fontSize = 10.sp,
+                color = statusColor,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = if (vpnState.status == VpnStatus.CONNECTED) "SECURED" else "UNSECURED",
+                fontSize = 8.sp,
+                color = if (vpnState.status == VpnStatus.CONNECTED) CyberGreen else CyberOrange,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier
+                    .background(if (vpnState.status == VpnStatus.CONNECTED) CyberGreen.copy(alpha = 0.12f) else CyberOrange.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                    .border(0.5.dp, if (vpnState.status == VpnStatus.CONNECTED) CyberGreen else CyberOrange, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 4.dp, vertical = 1.dp)
+            )
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "VPN Settings Link",
+                tint = TextSecondary,
+                modifier = Modifier.size(12.dp)
+            )
+        }
+    }
+    Divider(color = CyberBorder.copy(alpha = 0.7f))
 }

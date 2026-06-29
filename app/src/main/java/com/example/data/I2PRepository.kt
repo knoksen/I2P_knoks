@@ -11,16 +11,36 @@ class I2PRepository(
     private val identityDao: IdentityDao,
     private val secureMessageDao: SecureMessageDao,
     private val logDao: LogDao,
-    private val trustedKeyDao: TrustedKeyDao
+    private val trustedKeyDao: TrustedKeyDao,
+    private val contactDao: ContactDao
 ) {
     val allBookmarks: Flow<List<Bookmark>> = bookmarkDao.getAllBookmarks()
     val allIdentities: Flow<List<Identity>> = identityDao.getAllIdentities()
     val allMessages: Flow<List<SecureMessage>> = secureMessageDao.getAllMessages()
     val recentLogs: Flow<List<LogEntry>> = logDao.getRecentLogs()
     val allTrustedKeys: Flow<List<TrustedKey>> = trustedKeyDao.getAllTrustedKeys()
+    val allContacts: Flow<List<Contact>> = contactDao.getAllContacts()
 
-    suspend fun addBookmark(title: String, url: String, iconName: String = "public", colorHex: String = "#00B0FF") {
-        bookmarkDao.insertBookmark(Bookmark(title = title, url = url, iconName = iconName, colorHex = colorHex))
+    suspend fun addContact(name: String, address: String, type: String, status: String = "ONLINE", avatarColorHex: String = "#00B0FF") {
+        contactDao.insertContact(
+            Contact(
+                name = name,
+                address = address,
+                type = type,
+                status = status,
+                avatarColorHex = avatarColorHex
+            )
+        )
+        addLog("CONTACTS", "Added new contact: $name ($type - $address)", "SUCCESS")
+    }
+
+    suspend fun removeContact(contact: Contact) {
+        contactDao.deleteContact(contact)
+        addLog("CONTACTS", "Deleted contact: ${contact.name}", "WARN")
+    }
+
+    suspend fun addBookmark(title: String, url: String, iconName: String = "public", colorHex: String = "#00B0FF", safetyLevel: String = "SAFE") {
+        bookmarkDao.insertBookmark(Bookmark(title = title, url = url, iconName = iconName, colorHex = colorHex, safetyLevel = safetyLevel))
     }
 
     suspend fun removeBookmark(bookmark: Bookmark) {
@@ -160,7 +180,8 @@ class I2PRepository(
             Bookmark(title = "AnonIRC Relay Chat", url = "http://anon.chat.i2p", iconName = "chat", colorHex = "#D500F9"),
             Bookmark(title = "Invisible Cryptic Wiki", url = "http://wiki.leaks.i2p", iconName = "description", colorHex = "#FF3D00"),
             Bookmark(title = "Garlic Mail Service", url = "http://secure.mail.i2p", iconName = "mail", colorHex = "#FFD600"),
-            Bookmark(title = "Hidden Forum Feed", url = "http://forum.feed.i2p", iconName = "forum", colorHex = "#00B0FF")
+            Bookmark(title = "Hidden Forum Feed", url = "http://forum.feed.i2p", iconName = "forum", colorHex = "#00B0FF"),
+            Bookmark(title = "DarkBERT Threat Intelligence", url = "http://darkbert.intel.i2p", iconName = "shield", colorHex = "#AA00FF")
         )
 
         // Seed bookmarks if empty
@@ -200,6 +221,22 @@ class I2PRepository(
             if (list.isEmpty()) {
                 defaultPeerKeys.forEach { trustedKeyDao.insertTrustedKey(it) }
                 addLog("DATABASE", "Seeded default trusted peer keyrings.", "SUCCESS")
+            }
+        }
+
+        val defaultContacts = listOf(
+            Contact(name = "Postman (I2P Mailmaster)", address = "postman.i2p", type = "SECURE_I2P", status = "ONLINE", avatarColorHex = "#00E676"),
+            Contact(name = "Sybil (I2P Router Radar)", address = "sybil.i2p", type = "SECURE_I2P", status = "OFFLINE", avatarColorHex = "#FF3D00"),
+            Contact(name = "Google Chat: Project Dev Lead", address = "lead.dev@gmail.com", type = "GOOGLE_CHAT", status = "ONLINE", avatarColorHex = "#FFD600"),
+            Contact(name = "Google Chat: AI Bridge Agent", address = "gemini.bridge@gmail.com", type = "GOOGLE_CHAT", status = "ONLINE", avatarColorHex = "#AA00FF"),
+            Contact(name = "SMS: Secure Dispatcher", address = "+1555019283", type = "SMS", status = "ONLINE", avatarColorHex = "#00B0FF"),
+            Contact(name = "SMS: Emergency Backup Canary", address = "+1800555992", type = "SMS", status = "OFFLINE", avatarColorHex = "#FF3D00")
+        )
+
+        contactDao.getAllContacts().collect { list ->
+            if (list.isEmpty()) {
+                defaultContacts.forEach { contactDao.insertContact(it) }
+                addLog("DATABASE", "Seeded default secure contacts list (I2P, Google Chat, SMS).", "SUCCESS")
             }
         }
     }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,6 +55,13 @@ fun RouterScreen(
     val state by viewModel.routerState.collectAsState()
     val logs by viewModel.logs.collectAsState()
     val scope = rememberCoroutineScope()
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(viewModel) {
+        viewModel.networkAlerts.collect { message ->
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -212,6 +221,21 @@ fun RouterScreen(
                 isConnected = state.isConnected,
                 isConnecting = state.isConnecting
             )
+        }
+
+        // Live Circuit Statistics Dashboard Widget
+        item {
+            I2PCircuitStatsWidget(state = state)
+        }
+
+        // Live Health Optimizer Widget
+        item {
+            I2POptimizerWidget(state = state, viewModel = viewModel)
+        }
+
+        // Garlic Routing Knowledge Base Help Center
+        item {
+            I2PHelpCenterWidget()
         }
 
         // Telemetry Statistics
@@ -447,10 +471,33 @@ fun BrowserScreen(
     var urlInput by remember { mutableStateOf(tabState.url) }
     var showBookmarkDialog by remember { mutableStateOf(false) }
     var bookmarkTitleInput by remember { mutableStateOf("") }
+    var bookmarkSafetyInput by remember { mutableStateOf("SAFE") }
     
     // Sync address bar when page navigates
     LaunchedEffect(tabState.url) {
         urlInput = tabState.url
+    }
+
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedSafetyFilter by remember { mutableStateOf("ALL") }
+    var isIndexingSearchActive by remember { mutableStateOf(false) }
+
+    // Simulated I2P Distributed Hash Table (DHT) / hosts.txt indexing lookup
+    LaunchedEffect(searchQuery, selectedSafetyFilter) {
+        if (searchQuery.isNotEmpty()) {
+            isIndexingSearchActive = true
+            delay(350) // Simulated network hop lookup delay
+            isIndexingSearchActive = false
+        }
+    }
+
+    val filteredBookmarks = remember(bookmarks, searchQuery, selectedSafetyFilter) {
+        bookmarks.filter { bookmark ->
+            val matchesQuery = bookmark.title.contains(searchQuery, ignoreCase = true) ||
+                    bookmark.url.contains(searchQuery, ignoreCase = true)
+            val matchesFilter = selectedSafetyFilter == "ALL" || bookmark.safetyLevel == selectedSafetyFilter
+            matchesQuery && matchesFilter
+        }
     }
 
     Column(
@@ -571,6 +618,305 @@ fun BrowserScreen(
 
         Divider(color = CyberBorder)
 
+        // Quick Handshake & Accessory Cockpit
+        var isDockExpanded by remember { mutableStateOf(false) }
+        val activeAccessories by viewModel.activeAccessories.collectAsState()
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+            shape = RoundedCornerShape(0.dp),
+            border = BorderStroke(1.dp, CyberBorder),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isDockExpanded = !isDockExpanded }
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = CyberGreen,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            "QUICK HANDSHAKE & ACCESSORY COCKPIT",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    Icon(
+                        if (isDockExpanded) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                        contentDescription = if (isDockExpanded) "Collapse" else "Expand",
+                        tint = CyberGreen,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                if (isDockExpanded) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Divider(color = CyberBorder.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Simplified connection menu
+                    Text(
+                        "SAFE DARKNET ADDRESSES (ONE-CLICK HANDSHAKE)",
+                        color = CyberBlue,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val safeSites = listOf(
+                        "i2p-project.i2p" to "I2P Home",
+                        "anon.chat.i2p" to "AnonIRC",
+                        "wiki.leaks.i2p" to "WikiLeaks",
+                        "secure.mail.i2p" to "GarlicMail",
+                        "darkbert.intel.i2p" to "DarkBERT AI"
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        safeSites.forEach { (siteUrl, label) ->
+                            val isCurrent = tabState.url.contains(siteUrl)
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        if (isCurrent) CyberGreen.copy(alpha = 0.15f) else CyberBlack,
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isCurrent) CyberGreen else CyberBorder,
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable {
+                                        urlInput = siteUrl
+                                        viewModel.navigateBrowser(siteUrl)
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .background(if (isCurrent) CyberGreen else CyberBlue, RoundedCornerShape(3.dp))
+                                    )
+                                    Text(
+                                        text = label,
+                                        color = if (isCurrent) CyberGreen else TextPrimary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Manual Connection Gate with encryption hop level picker
+                    Text(
+                        "MANUAL GATEWAY ENTRY",
+                        color = CyberOrange,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    var manualAddressInput by remember { mutableStateOf("") }
+                    var garlicHopLevel by remember { mutableStateOf("Double Hop") }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = manualAddressInput,
+                            onValueChange = { manualAddressInput = it },
+                            placeholder = { Text("any-address.i2p / .onion", color = TextSecondary, fontSize = 11.sp) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .testTag("manual_gateway_input"),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                focusedBorderColor = CyberOrange,
+                                unfocusedBorderColor = CyberBorder,
+                                focusedContainerColor = CyberBlack,
+                                unfocusedContainerColor = CyberBlack
+                            ),
+                            singleLine = true,
+                            textStyle = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                        )
+
+                        Button(
+                            onClick = {
+                                if (manualAddressInput.isNotBlank()) {
+                                    val cleanManual = manualAddressInput.trim()
+                                    urlInput = cleanManual
+                                    viewModel.navigateBrowser(cleanManual)
+                                    manualAddressInput = ""
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CyberOrange,
+                                contentColor = CyberBlack
+                            ),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier
+                                .height(48.dp)
+                                .testTag("manual_gateway_connect_button")
+                        ) {
+                            Text("GATE CONNECT", fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Hop level picker chips
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("Direct proxy", "Double Hop", "Garlic-Clad").forEach { level ->
+                            val isSelected = garlicHopLevel == level
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        if (isSelected) CyberOrange.copy(alpha = 0.15f) else Color.Transparent,
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) CyberOrange else CyberBorder.copy(alpha = 0.5f),
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .clickable { garlicHopLevel = level }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = level,
+                                    color = if (isSelected) CyberOrange else TextSecondary,
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Divider(color = CyberBorder.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Adviced accessories
+                    Text(
+                        "ADVICED SECURITY ACCESSORIES (ACTIVE LAYER PROTECTION)",
+                        color = CyberPurple,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        "Configure active browser payloads to adapt to routing latency and secure sandboxing profiles.",
+                        color = TextSecondary,
+                        fontSize = 10.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    val accessoriesList = listOf(
+                        Triple("noscript", "NoScript Shield", "Disables Javascript to block browser exploit vectors (-300ms latency)"),
+                        Triple("https_everywhere", "HTTPS-Everywhere", "Enforces end-to-end transport-layer TLS encapsulation (+100ms latency)"),
+                        Triple("user_agent", "UA-Cloaking Spoofer", "Hides hardware fingerprint and client user-agent headers (+50ms latency)"),
+                        Triple("metadata_stripper", "Metadata Stripper", "Purges EXIF data and upload tracking metadata tags (+150ms latency)")
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        accessoriesList.forEach { (id, title, desc) ->
+                            val isEnabled = activeAccessories.contains(id)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        1.dp,
+                                        if (isEnabled) CyberPurple else CyberBorder,
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .background(
+                                        if (isEnabled) CyberPurple.copy(alpha = 0.10f) else Color.Transparent,
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable { viewModel.toggleAccessory(id) }
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = title,
+                                        color = if (isEnabled) CyberPurple else TextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                    Text(
+                                        text = desc,
+                                        color = TextSecondary,
+                                        fontSize = 9.sp
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp, 20.dp)
+                                        .background(
+                                            if (isEnabled) CyberPurple else CyberBlack,
+                                            RoundedCornerShape(10.dp)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (isEnabled) CyberPurple else CyberBorder,
+                                            RoundedCornerShape(10.dp)
+                                        ),
+                                    contentAlignment = if (isEnabled) Alignment.CenterEnd else Alignment.CenterStart
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(2.dp)
+                                            .size(16.dp)
+                                            .background(Color.White, RoundedCornerShape(8.dp))
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Divider(color = CyberBorder)
+
         // Web Content Render area
         Box(
             modifier = Modifier
@@ -651,10 +997,159 @@ fun BrowserScreen(
                         }
                     }
 
+                    // Simulated I2P Indexing Search Card
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                            border = BorderStroke(1.dp, CyberBorder),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = null,
+                                            tint = CyberBlue,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            "I2P DISTRIBUTED INDEX LOOKUP",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = CyberBlue,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                    }
+                                    
+                                    // Indexer Node status
+                                    Box(
+                                        modifier = Modifier
+                                            .background(
+                                                if (isIndexingSearchActive) CyberOrange.copy(alpha = 0.15f) else CyberGreen.copy(alpha = 0.15f),
+                                                RoundedCornerShape(4.dp)
+                                            )
+                                            .border(
+                                                0.5.dp,
+                                                if (isIndexingSearchActive) CyberOrange else CyberGreen,
+                                                RoundedCornerShape(4.dp)
+                                            )
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isIndexingSearchActive) "QUERYING DHT" else "INDEX READY",
+                                            fontSize = 7.sp,
+                                            color = if (isIndexingSearchActive) CyberOrange else CyberGreen,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                                
+                                OutlinedTextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("i2p_index_search_bar"),
+                                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                        color = TextPrimary,
+                                        fontFamily = FontFamily.Monospace
+                                    ),
+                                    placeholder = { Text("Search addresses, services, or titles...", color = TextSecondary, fontSize = 12.sp) },
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextPrimary,
+                                        unfocusedTextColor = TextPrimary,
+                                        focusedBorderColor = CyberBlue,
+                                        unfocusedBorderColor = CyberBorder
+                                    ),
+                                    trailingIcon = {
+                                        if (searchQuery.isNotEmpty()) {
+                                            IconButton(onClick = { searchQuery = "" }) {
+                                                Icon(Icons.Default.Clear, contentDescription = "Clear search", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                            }
+                                        }
+                                    }
+                                )
+
+                                // Safety/Verification Category filter chips
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    listOf("ALL", "SAFE", "SUSPICIOUS", "DANGEROUS").forEach { level ->
+                                        val isSelected = selectedSafetyFilter == level
+                                        val chipColor = when (level) {
+                                            "SAFE" -> CyberGreen
+                                            "SUSPICIOUS" -> CyberOrange
+                                            "DANGEROUS" -> CyberRed
+                                            else -> CyberBlue
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .background(
+                                                    if (isSelected) chipColor.copy(alpha = 0.2f) else CyberBlack,
+                                                    RoundedCornerShape(6.dp)
+                                                )
+                                                .border(
+                                                    1.dp,
+                                                    if (isSelected) chipColor else CyberBorder,
+                                                    RoundedCornerShape(6.dp)
+                                                )
+                                                .clickable { selectedSafetyFilter = level }
+                                                .padding(vertical = 6.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = level,
+                                                fontSize = 9.sp,
+                                                color = if (isSelected) chipColor else TextSecondary,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Interactive Indexing system telemetry log output
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(CyberBlack, RoundedCornerShape(4.dp))
+                                        .border(0.5.dp, CyberBorder, RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = when {
+                                            isIndexingSearchActive -> "i2p://indexer: dht_find_providers query sent to [3] active garlic peers..."
+                                            searchQuery.isNotEmpty() -> "i2p://indexer: returned ${filteredBookmarks.size} verified Leaseset record(s) matching \"$searchQuery\"."
+                                            else -> "i2p://indexer: local addressbook (hosts.txt) parsed • ${bookmarks.size} router entries indexed."
+                                        },
+                                        fontSize = 9.sp,
+                                        color = if (isIndexingSearchActive) CyberOrange else if (searchQuery.isNotEmpty()) CyberBlue else TextSecondary,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Bookmarked Sites Grid Header
                     item {
                         Text(
-                            "YOUR SEED BOOKMARKS",
+                            if (searchQuery.isNotEmpty() || selectedSafetyFilter != "ALL") "INDEX MATCHES" else "YOUR SEED BOOKMARKS",
                             style = MaterialTheme.typography.labelMedium,
                             color = TextSecondary,
                             fontWeight = FontWeight.Bold,
@@ -663,16 +1158,16 @@ fun BrowserScreen(
                     }
 
                     // Bookmarks List
-                    if (bookmarks.isEmpty()) {
+                    if (filteredBookmarks.isEmpty()) {
                         item {
                             Text(
-                                "No bookmarks saved.",
+                                if (searchQuery.isNotEmpty() || selectedSafetyFilter != "ALL") "No matching verified addresses found in I2P index." else "No bookmarks saved.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = TextSecondary
                             )
                         }
                     } else {
-                        items(bookmarks) { bookmark ->
+                        items(filteredBookmarks) { bookmark ->
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
                                 border = BorderStroke(1.dp, CyberBorder),
@@ -703,6 +1198,7 @@ fun BrowserScreen(
                                                     "description" -> Icons.Default.Description
                                                     "mail" -> Icons.Default.Mail
                                                     "forum" -> Icons.Default.Forum
+                                                    "shield" -> Icons.Default.Shield
                                                     else -> Icons.Default.Language
                                                 },
                                                 contentDescription = null,
@@ -711,12 +1207,37 @@ fun BrowserScreen(
                                         }
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Column {
-                                            Text(
-                                                bookmark.title,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = TextPrimary,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    bookmark.title,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = TextPrimary,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                val safetyColor = when (bookmark.safetyLevel) {
+                                                    "SAFE" -> CyberGreen
+                                                    "SUSPICIOUS" -> CyberOrange
+                                                    "DANGEROUS" -> CyberRed
+                                                    else -> CyberBlue
+                                                }
+                                                Box(
+                                                    modifier = Modifier
+                                                        .background(safetyColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                                        .border(0.5.dp, safetyColor, RoundedCornerShape(4.dp))
+                                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                ) {
+                                                    Text(
+                                                        bookmark.safetyLevel,
+                                                        fontSize = 7.sp,
+                                                        color = safetyColor,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontFamily = FontFamily.Monospace
+                                                    )
+                                                }
+                                            }
                                             Text(
                                                 bookmark.url,
                                                 style = MaterialTheme.typography.bodySmall,
@@ -766,13 +1287,53 @@ fun BrowserScreen(
                             unfocusedBorderColor = CyberBorder
                         )
                     )
+
+                    Text("Safety Level", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("SAFE", "SUSPICIOUS", "DANGEROUS").forEach { level ->
+                            val isSelected = bookmarkSafetyInput == level
+                            val levelColor = when (level) {
+                                "SAFE" -> CyberGreen
+                                "SUSPICIOUS" -> CyberOrange
+                                "DANGEROUS" -> CyberRed
+                                else -> CyberBlue
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        if (isSelected) levelColor.copy(alpha = 0.2f) else CyberBlack,
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) levelColor else CyberBorder,
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable { bookmarkSafetyInput = level }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = level,
+                                    fontSize = 10.sp,
+                                    color = if (isSelected) levelColor else TextSecondary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         if (bookmarkTitleInput.isNotEmpty() && urlInput.isNotEmpty()) {
-                            viewModel.addWebBookmark(bookmarkTitleInput, urlInput)
+                            viewModel.addWebBookmark(bookmarkTitleInput, urlInput, bookmarkSafetyInput)
                         }
                         showBookmarkDialog = false
                     },
@@ -853,6 +1414,9 @@ fun RenderWebpageContents(url: String, onNavigate: (String) -> Unit) {
                 Text("All messages are digitally signed. Private communication is protected under ElGamal keys.", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
             }
         }
+        url.contains("darkbert.intel") -> {
+            DarkBERTPortal()
+        }
         else -> {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("GENERIC DECENTRALIZED EEPSITE SERVICE", style = MaterialTheme.typography.bodySmall, color = TextSecondary, fontWeight = FontWeight.Bold)
@@ -862,6 +1426,790 @@ fun RenderWebpageContents(url: String, onNavigate: (String) -> Unit) {
                     color = TextPrimary
                 )
                 Text("The connection remains end-to-end encrypted under garlic-clad leaseSets.", style = MaterialTheme.typography.bodySmall, color = CyberGreen)
+            }
+        }
+    }
+}
+
+@Composable
+fun I2PCircuitStatsWidget(
+    state: RouterState,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.dp, CyberBorder),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("circuit_stats_card")
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Widget Title Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Shield,
+                        contentDescription = null,
+                        tint = CyberPurple,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        "I2P ACTIVE CIRCUIT HEALTH",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyberPurple,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                if (state.isConnected) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(CyberGreen, RoundedCornerShape(4.dp))
+                        )
+                        Text(
+                            "LIVE",
+                            color = CyberGreen,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(TextSecondary, RoundedCornerShape(4.dp))
+                        )
+                        Text(
+                            "INACTIVE",
+                            color = TextSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Main stats row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Latency Stat
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(CyberBlack, RoundedCornerShape(8.dp))
+                        .border(1.dp, CyberBorder.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Timer,
+                            contentDescription = null,
+                            tint = CyberOrange,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            "LATENCY",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (state.isConnected) "${state.latencyMs} ms" else "---",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = if (state.isConnected) {
+                            if (state.latencyMs > 800) CyberRed else if (state.latencyMs > 400) CyberOrange else CyberGreen
+                        } else TextSecondary,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.testTag("circuit_latency_value")
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    // Latency bar indicator
+                    if (state.isConnected) {
+                        val percentage = (state.latencyMs.toFloat() / 1200f).coerceIn(0.1f, 1.0f)
+                        LinearProgressIndicator(
+                            progress = { percentage },
+                            color = if (state.latencyMs > 800) CyberRed else if (state.latencyMs > 400) CyberOrange else CyberGreen,
+                            trackColor = CyberBorder.copy(alpha = 0.2f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .background(CyberBorder.copy(alpha = 0.2f), RoundedCornerShape(2.dp))
+                        )
+                    }
+                }
+
+                // Packet Loss Stat
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(CyberBlack, RoundedCornerShape(8.dp))
+                        .border(1.dp, CyberBorder.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = CyberRed,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            "LOSS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (state.isConnected) String.format(Locale.US, "%.2f%%", state.packetLoss) else "---",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = if (state.isConnected) {
+                            if (state.packetLoss > 2.0f) CyberRed else if (state.packetLoss > 0.8f) CyberOrange else CyberGreen
+                        } else TextSecondary,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.testTag("circuit_packet_loss_value")
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    // Loss bar indicator
+                    if (state.isConnected) {
+                        val percentage = (state.packetLoss / 5.0f).coerceIn(0.05f, 1.0f)
+                        LinearProgressIndicator(
+                            progress = { percentage },
+                            color = if (state.packetLoss > 2.0f) CyberRed else if (state.packetLoss > 0.8f) CyberOrange else CyberGreen,
+                            trackColor = CyberBorder.copy(alpha = 0.2f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .background(CyberBorder.copy(alpha = 0.2f), RoundedCornerShape(2.dp))
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Active Tunnel Peers row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CyberBlack, RoundedCornerShape(8.dp))
+                    .border(1.dp, CyberBorder.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Router,
+                        contentDescription = null,
+                        tint = CyberBlue,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column {
+                        Text(
+                            "ACTIVE CIRCUIT PEERS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Nodes participating in current leaseSets",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary.copy(alpha = 0.7f),
+                            fontSize = 9.sp
+                        )
+                    }
+                }
+
+                Text(
+                    text = if (state.isConnected) "${state.activePeerCount} peers" else "0 peers",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (state.isConnected) CyberBlue else TextSecondary,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.testTag("circuit_active_peers_value")
+                )
+            }
+
+            if (state.isConnected) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint = CyberGreen.copy(alpha = 0.7f),
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Text(
+                        text = "Circuit is stable. Double-hop ElGamal/AES-256 wrapping active across ${state.tunnelHops} hops.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary,
+                        fontSize = 9.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun I2POptimizerWidget(
+    state: RouterState,
+    viewModel: I2PViewModel,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.dp, CyberBorder),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("circuit_optimizer_card")
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Default.Security,
+                    contentDescription = null,
+                    tint = CyberGreen,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    "NETWORK HEALTH OPTIMIZER",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CyberGreen,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (!state.isConnected) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CyberBlack, RoundedCornerShape(8.dp))
+                        .border(1.dp, CyberBorder.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Connect the Garlic Router to activate real-time self-healing and optimization utilities.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                Text(
+                    text = "Operational anomalies detected in the circuit can be automatically patched using the recommended tactical procedures below:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextPrimary,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                // 2x2 Grid of Actions
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Fast Path
+                        OutlinedButton(
+                            onClick = { viewModel.optimizeLatency() },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = CyberBlack,
+                                contentColor = CyberOrange
+                            ),
+                            border = BorderStroke(1.dp, CyberOrange.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(64.dp)
+                                .testTag("btn_optimize_latency")
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Default.Timer, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Text("FAST PATH", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                }
+                                Text("Optimize Latency", fontSize = 9.sp, color = TextSecondary)
+                            }
+                        }
+
+                        // Pool Refresh
+                        OutlinedButton(
+                            onClick = { viewModel.rebuildTunnelPool() },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = CyberBlack,
+                                contentColor = CyberBlue
+                            ),
+                            border = BorderStroke(1.dp, CyberBlue.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(64.dp)
+                                .testTag("btn_rebuild_pool")
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Text("POOL REFRESH", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                }
+                                Text("Purge Packet Loss", fontSize = 9.sp, color = TextSecondary)
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Auto-Stabilize
+                        OutlinedButton(
+                            onClick = { viewModel.autoStabilizeCircuit() },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = CyberBlack,
+                                contentColor = CyberPurple
+                            ),
+                            border = BorderStroke(1.dp, CyberPurple.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(64.dp)
+                                .testTag("btn_auto_stabilize")
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Text("STABILIZE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                }
+                                Text("Restore Balanced 3-Hops", fontSize = 9.sp, color = TextSecondary)
+                            }
+                        }
+
+                        // Full Self-Healing
+                        OutlinedButton(
+                            onClick = { viewModel.autoFixAnomalies() },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = CyberBlack,
+                                contentColor = CyberGreen
+                            ),
+                            border = BorderStroke(1.dp, CyberGreen.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(64.dp)
+                                .testTag("btn_self_healing")
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Text("SELF-HEALING", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                }
+                                Text("Run Full Diagnostics", fontSize = 9.sp, color = TextSecondary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun I2PHelpCenterWidget(
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.dp, CyberBorder),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("circuit_help_center_card")
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header row (clickable to expand/collapse)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint = CyberBlue,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        "GARLIC ROUTING KNOWLEDGE BASE",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyberBlue,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = CyberBlue,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            if (expanded) {
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = CyberBorder.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Section 1: Garlic Circuit Mechanics
+                    Column {
+                        Text(
+                            "What is Garlic Routing?",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Garlic routing is an extension of onion routing. It encrypts multiple messages together (called garlic cloves) to make traffic analysis extremely difficult. Packets travel through a unidirectional path of pre-configured tunnel nodes (hops). Each hop strips off one layer of encryption, forwarding the payload to the next participant until the destination is reached.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+
+                    // Section 2: Safe Metric Ranges
+                    Column {
+                        Text(
+                            "Safe Operational Thresholds",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        
+                        // Latency Table/Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Metric", style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontWeight = FontWeight.Bold)
+                            Text("Safe Range", style = MaterialTheme.typography.labelSmall, color = CyberGreen, fontWeight = FontWeight.Bold)
+                            Text("Critical Spike", style = MaterialTheme.typography.labelSmall, color = CyberRed, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Circuit Latency", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+                            Text("< 400 ms", style = MaterialTheme.typography.bodySmall, color = CyberGreen, fontFamily = FontFamily.Monospace)
+                            Text("> 800 ms", style = MaterialTheme.typography.bodySmall, color = CyberRed, fontFamily = FontFamily.Monospace)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Packet Loss Rate", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+                            Text("< 0.80%", style = MaterialTheme.typography.bodySmall, color = CyberGreen, fontFamily = FontFamily.Monospace)
+                            Text("> 2.00%", style = MaterialTheme.typography.bodySmall, color = CyberRed, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+
+                    // Section 3: Diagnostic Fixes
+                    Column {
+                        Text(
+                            "Mitigation Strategies",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        BulletPoint("High Latency Spikes", "Caused by traversing multiple global nodes. Activate 'FAST PATH' to temporarily drop to a low-latency 1-hop tunnel pool.")
+                        BulletPoint("High Packet Loss Rates", "Caused by unstable or compromised intermediary garlic peers. Trigger 'POOL REFRESH' to flush local netDB descriptors and establish new circuits.")
+                        BulletPoint("Degraded Security Scores", "Always utilize standard 3-hop or high-privacy 5-hop configurations when communicating sensitive garlic-encrypted payloads.")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BulletPoint(title: String, description: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text("•", color = CyberBlue, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+        Column {
+            Text(title, style = MaterialTheme.typography.bodySmall, color = TextPrimary, fontWeight = FontWeight.Bold)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+        }
+    }
+}
+
+@Composable
+fun DarkBERTPortal(modifier: Modifier = Modifier) {
+    var queryInput by remember { mutableStateOf("") }
+    var analysisResult by remember { mutableStateOf("") }
+    var isAnalyzing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(CyberBlack)
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Portal Header
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, CyberPurple, RoundedCornerShape(8.dp))
+                .background(CyberPurple.copy(alpha = 0.05f))
+                .padding(12.dp)
+        ) {
+            Icon(
+                Icons.Default.Security,
+                contentDescription = null,
+                tint = CyberPurple,
+                modifier = Modifier.size(28.dp)
+            )
+            Column {
+                Text(
+                    "DarkBERT THREAT INTEL v2.5",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    "Domain-Specific Darknet Security & Threat Intelligence",
+                    color = TextSecondary,
+                    fontSize = 11.sp
+                )
+            }
+        }
+
+        Text(
+            "Powered by deep darknet crawl repositories. DarkBERT provides automated intelligence parsing on leak databases, malware exploits, and deanonymization vectors.",
+            style = MaterialTheme.typography.bodySmall,
+            color = TextSecondary
+        )
+
+        // Preset chips
+        Text(
+            "QUICK THREAT PROFILE QUERY:",
+            style = MaterialTheme.typography.labelSmall,
+            color = CyberPurple,
+            fontWeight = FontWeight.Bold
+        )
+
+        val presets = listOf(
+            "Scan wiki.leaks.i2p for active security leaks",
+            "Garlic vs Onion Routing: Timing correlations",
+            "What accessories protect my browser fingerprint?",
+            "Explain common darknet e-mail phishing exploits"
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            presets.forEach { preset ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                    border = BorderStroke(1.dp, CyberBorder),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { queryInput = preset }
+                ) {
+                    Text(
+                        text = "• $preset",
+                        color = CyberBlue,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+            }
+        }
+
+        // Custom input
+        OutlinedTextField(
+            value = queryInput,
+            onValueChange = { queryInput = it },
+            label = { Text("Query DarkBERT Intel Database", color = TextSecondary) },
+            placeholder = { Text("Enter target IP, eepsite, or security topic...", color = TextSecondary) },
+            modifier = Modifier.fillMaxWidth().testTag("darkbert_query_input"),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary,
+                focusedBorderColor = CyberPurple,
+                unfocusedBorderColor = CyberBorder,
+                focusedContainerColor = CyberBlack,
+                unfocusedContainerColor = CyberBlack
+            ),
+            singleLine = true
+        )
+
+        // Action Button
+        Button(
+            onClick = {
+                if (queryInput.isNotBlank()) {
+                    scope.launch {
+                        isAnalyzing = true
+                        analysisResult = ""
+                        analysisResult = com.example.data.queryDarkBERT(queryInput)
+                        isAnalyzing = false
+                    }
+                }
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = CyberPurple,
+                contentColor = Color.White
+            ),
+            enabled = !isAnalyzing && queryInput.isNotBlank(),
+            modifier = Modifier.fillMaxWidth().testTag("darkbert_submit_button")
+        ) {
+            if (isAnalyzing) {
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Analyzing Threat Signatures...", fontWeight = FontWeight.Bold)
+            } else {
+                Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("DISPATCH DARKBERT INQUIRY", fontWeight = FontWeight.Bold)
+            }
+        }
+
+        // Analysis Output
+        if (isAnalyzing || analysisResult.isNotEmpty()) {
+            Text(
+                "DARKBERT INTELLIGENCE OUTPUT:",
+                style = MaterialTheme.typography.labelSmall,
+                color = CyberGreen,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CyberBlack, RoundedCornerShape(8.dp))
+                    .border(1.dp, if (isAnalyzing) CyberPurple else CyberGreen, RoundedCornerShape(8.dp))
+                    .padding(12.dp)
+            ) {
+                if (isAnalyzing) {
+                    Text(
+                        "system@darkbert_core:~$ querying deep database hashes...\n[Analyzing entropy packets and correlation models...]",
+                        color = CyberPurple,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        modifier = Modifier.testTag("darkbert_output_box")
+                    )
+                } else {
+                    Text(
+                        text = analysisResult,
+                        color = if (analysisResult.startsWith("ERROR")) CyberRed else CyberGreen,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        modifier = Modifier.testTag("darkbert_output_box")
+                    )
+                }
             }
         }
     }
@@ -948,187 +2296,808 @@ fun GarlicChatTab(
     viewModel: I2PViewModel,
     modifier: Modifier = Modifier
 ) {
+    val contacts by viewModel.contacts.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val activeIdentity by viewModel.activeIdentity.collectAsState()
     val routerState by viewModel.routerState.collectAsState()
 
-    var recipientInput by remember { mutableStateOf("") }
+    var selectedContact by remember { mutableStateOf<Contact?>(null) }
+    var selectedTypeFilter by remember { mutableStateOf("ALL") }
+    var showAddContactDialog by remember { mutableStateOf(false) }
     var messageInput by remember { mutableStateOf("") }
+
+    // Synchronize selected contact if list changes or becomes empty
+    LaunchedEffect(contacts) {
+        if (selectedContact == null && contacts.isNotEmpty()) {
+            selectedContact = contacts.firstOrNull()
+        } else if (contacts.isNotEmpty() && !contacts.contains(selectedContact)) {
+            selectedContact = contacts.firstOrNull()
+        }
+    }
+
+    // Add Contact Form States
+    var newContactName by remember { mutableStateOf("") }
+    var newContactAddress by remember { mutableStateOf("") }
+    var newContactType by remember { mutableStateOf("GOOGLE_CHAT") } // GOOGLE_CHAT, SMS, SECURE_I2P
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(CyberBlack)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Active Identity Key Details
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-            border = BorderStroke(1.dp, CyberBorder),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    "YOUR ACTIVE CRYPTOGRAPHIC ALIAS",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = CyberPurple,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (activeIdentity != null) {
-                    Text(
-                        activeIdentity!!.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        "I2P Address: ${activeIdentity!!.i2pAddress}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = CyberGreen,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "Destination Hash: ${activeIdentity!!.fullDestination}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary,
-                        fontFamily = FontFamily.Monospace
-                    )
-                } else {
-                    Text(
-                        "No Identity Selected. Navigate to Identity tab to register secure cryptographic profiles.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = CyberRed
-                    )
-                }
-            }
-        }
-
-        // Send Garlic Encrypted Clove Message
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-            border = BorderStroke(1.dp, CyberBorder),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    "DISPATCH ENCRYPTED MESSAGE (GARLIC ROUTED)",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = CyberBlue,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = recipientInput,
-                    onValueChange = { recipientInput = it },
-                    label = { Text("Recipient .i2p address", color = TextSecondary) },
-                    placeholder = { Text("e.g. anon.chat.i2p", color = TextSecondary) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("comms_recipient_input"),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedBorderColor = CyberGreen,
-                        unfocusedBorderColor = CyberBorder
-                    ),
-                    singleLine = true
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = messageInput,
-                    onValueChange = { messageInput = it },
-                    label = { Text("Secret message payload", color = TextSecondary) },
-                    placeholder = { Text("Message body encrypted on client before dispatch...", color = TextSecondary) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("comms_message_input"),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedBorderColor = CyberGreen,
-                        unfocusedBorderColor = CyberBorder
-                    ),
-                    maxLines = 4
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Button(
-                    onClick = {
-                        if (recipientInput.isNotEmpty() && messageInput.isNotEmpty()) {
-                            viewModel.sendSecurePayload(recipientInput, messageInput)
-                            messageInput = ""
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = CyberGreen,
-                        contentColor = CyberBlack
-                    ),
-                    enabled = routerState.isConnected && activeIdentity != null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("comms_send_button")
-                ) {
-                    Icon(Icons.Default.EnhancedEncryption, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        if (!routerState.isConnected) "Connect Router to dispatch" else "Garlic-Encrypt & Send",
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        // Live Communication Stream
+        // Section Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "DECRYPTED LIVE CHAT HISTORY",
-                style = MaterialTheme.typography.labelSmall,
-                color = TextSecondary,
-                fontWeight = FontWeight.Bold
-            )
-            TextButton(
-                onClick = { viewModel.clearHistory() },
-                colors = ButtonDefaults.textButtonColors(contentColor = CyberRed)
+            Column {
+                Text(
+                    "SECURE DIRECTORY & CHAT",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
+                Text(
+                    "Signal Protocol • OTR over OAuth2 • Garlic Routing",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary
+                )
+            }
+            
+            Button(
+                onClick = { showAddContactDialog = true },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = CyberBlue,
+                    contentColor = CyberBlack
+                ),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(6.dp)
             ) {
-                Icon(Icons.Default.ClearAll, contentDescription = "Clear Messaging Session", modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Add, contentDescription = "Add Contact", modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Clear History", style = MaterialTheme.typography.labelSmall)
+                Text("ADD", fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
         }
 
-        if (messages.isEmpty()) {
+        // Service Type Filter Chips
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf("ALL", "SECURE_I2P", "GOOGLE_CHAT", "SMS").forEach { type ->
+                val isSelected = selectedTypeFilter == type
+                val label = when (type) {
+                    "SECURE_I2P" -> "I2P GARLIC"
+                    "GOOGLE_CHAT" -> "GOOGLE CHAT"
+                    "SMS" -> "SECURE SMS"
+                    else -> "ALL NETWORKS"
+                }
+                val chipColor = when (type) {
+                    "SECURE_I2P" -> CyberGreen
+                    "GOOGLE_CHAT" -> CyberYellow
+                    "SMS" -> CyberBlue
+                    else -> CyberPurple
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(
+                            if (isSelected) chipColor.copy(alpha = 0.15f) else CyberDarkSurface,
+                            RoundedCornerShape(6.dp)
+                        )
+                        .border(
+                            1.dp,
+                            if (isSelected) chipColor else CyberBorder,
+                            RoundedCornerShape(6.dp)
+                        )
+                        .clickable { selectedTypeFilter = type }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 8.sp,
+                        color = if (isSelected) chipColor else TextSecondary,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+
+        // Scrollable Contacts Carousel Row
+        val filteredContacts = remember(contacts, selectedTypeFilter) {
+            contacts.filter { selectedTypeFilter == "ALL" || it.type == selectedTypeFilter }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+            border = BorderStroke(1.dp, CyberBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(10.dp)) {
+                Text(
+                    "PEER CONTACT DIRECTORY (${filteredContacts.size})",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (filteredContacts.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "No contacts found for selected network filter.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        filteredContacts.forEach { contact ->
+                            val isSelected = selectedContact?.id == contact.id
+                            val contactColor = Color(android.graphics.Color.parseColor(contact.avatarColorHex))
+                            
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clickable { selectedContact = contact }
+                                    .padding(4.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.BottomEnd) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .background(
+                                                if (isSelected) contactColor.copy(alpha = 0.25f) else CyberBlack,
+                                                CircleShape
+                                            )
+                                            .border(
+                                                width = if (isSelected) 2.dp else 1.dp,
+                                                color = if (isSelected) contactColor else CyberBorder,
+                                                shape = CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = contact.name.take(2).uppercase(),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = contactColor,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    
+                                    // Status and Service Overlay Badges
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Network service symbol badge
+                                        Box(
+                                            modifier = Modifier
+                                                .size(14.dp)
+                                                .background(CyberBlack, CircleShape)
+                                                .border(0.5.dp, contactColor, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = when (contact.type) {
+                                                    "GOOGLE_CHAT" -> Icons.Default.AlternateEmail
+                                                    "SMS" -> Icons.Default.Sms
+                                                    else -> Icons.Default.Lock
+                                                },
+                                                contentDescription = contact.type,
+                                                tint = contactColor,
+                                                modifier = Modifier.size(8.dp)
+                                            )
+                                        }
+
+                                        // Online/Offline status dot
+                                        Box(
+                                            modifier = Modifier
+                                                .size(10.dp)
+                                                .background(
+                                                    if (contact.status == "ONLINE") CyberGreen else TextSecondary,
+                                                    CircleShape
+                                                )
+                                                .border(1.dp, CyberBlack, CircleShape)
+                                        )
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(4.dp))
+                                
+                                Text(
+                                    text = contact.name,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) TextPrimary else TextSecondary,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Active Chat Conversation Pane
+        if (selectedContact != null) {
+            val contact = selectedContact!!
+            val contactColor = Color(android.graphics.Color.parseColor(contact.avatarColorHex))
+
+            // Contact Header Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                border = BorderStroke(1.dp, CyberBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(contactColor.copy(alpha = 0.15f), CircleShape)
+                                .border(1.dp, contactColor, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                contact.name.take(1).uppercase(),
+                                fontWeight = FontWeight.Bold,
+                                color = contactColor
+                            )
+                        }
+                        
+                        Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    contact.name,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .background(contactColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                        .border(0.5.dp, contactColor, RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = when (contact.type) {
+                                            "GOOGLE_CHAT" -> "GOOGLE CHAT (E2EE)"
+                                            "SMS" -> "SMS (SILENCE PROTOCOL)"
+                                            else -> "I2P GARLIC PEER"
+                                        },
+                                        fontSize = 7.sp,
+                                        color = contactColor,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Address: ${contact.address}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextSecondary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+
+                    // Delete Contact Button
+                    IconButton(
+                        onClick = {
+                            viewModel.deleteContact(contact)
+                            selectedContact = null
+                        }
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete Contact", tint = CyberRed.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+
+            // Filtering messages for the active conversation
+            val conversationMessages = remember(messages, contact) {
+                messages.filter { msg ->
+                    msg.senderAddress == contact.address || msg.recipientAddress == contact.address
+                }.reversed()
+            }
+
+            // Message Stream Column
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
+                    .weight(1f)
+                    .background(CyberBlack)
             ) {
-                Text(
-                    "No messages in secure channel. Enter a recipient and try sending a message.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
-                    textAlign = TextAlign.Center
-                )
+                if (conversationMessages.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.Forum, contentDescription = null, tint = contactColor.copy(alpha = 0.4f), modifier = Modifier.size(36.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "No messages exchanged in this secure tunnel.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(bottom = 12.dp)
+                    ) {
+                        items(conversationMessages) { msg ->
+                            ContactMessageBubble(msg = msg, contact = contact)
+                        }
+                    }
+                }
+            }
+
+            // Message Input Drawer
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                border = BorderStroke(1.dp, CyberBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = when (contact.type) {
+                                "GOOGLE_CHAT" -> "SENDING VIA GOOGLE CHAT PROTOCOL"
+                                "SMS" -> "SENDING VIA SMS CELLULAR CARRIER"
+                                else -> "SENDING VIA I2P GARLIC TUNNEL"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = contactColor,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 8.sp
+                        )
+
+                        Text(
+                            text = if (routerState.isConnected || contact.type != "SECURE_I2P") "CARRIER ENCRYPTED" else "OFFLINE",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (routerState.isConnected || contact.type != "SECURE_I2P") CyberGreen else CyberRed,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 8.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = messageInput,
+                        onValueChange = { messageInput = it },
+                        placeholder = { Text("Enter private chat content...", color = TextSecondary, fontSize = 12.sp) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("comms_message_input"),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = contactColor,
+                            unfocusedBorderColor = CyberBorder
+                        ),
+                        maxLines = 3,
+                        trailingIcon = {
+                            if (messageInput.isNotEmpty()) {
+                                IconButton(onClick = { messageInput = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Button(
+                        onClick = {
+                            if (messageInput.isNotEmpty()) {
+                                viewModel.sendSecureContactMessage(contact, messageInput)
+                                messageInput = ""
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = contactColor,
+                            contentColor = CyberBlack
+                        ),
+                        enabled = (routerState.isConnected || contact.type != "SECURE_I2P") && activeIdentity != null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("comms_send_button"),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = when (contact.type) {
+                                "GOOGLE_CHAT" -> Icons.Default.AlternateEmail
+                                "SMS" -> Icons.Default.Sms
+                                else -> Icons.Default.EnhancedEncryption
+                            },
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = when {
+                                activeIdentity == null -> "Configure Profile to Send"
+                                contact.type == "SECURE_I2P" && !routerState.isConnected -> "Connect Router to Send"
+                                contact.type == "GOOGLE_CHAT" -> "Double-Ratchet Encrypt & Dispatch"
+                                contact.type == "SMS" -> "OTR SMS Encrypt & Send"
+                                else -> "Garlic-Encrypt & Send"
+                            },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            // Empty State
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(CyberDarkSurface, RoundedCornerShape(8.dp))
+                    .border(1.dp, CyberBorder, RoundedCornerShape(8.dp))
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
             ) {
-                items(messages, key = { it.id }) { msg ->
-                    MessageCardItem(msg = msg)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ContactMail,
+                        contentDescription = "Select Contact",
+                        tint = CyberPurple,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Text(
+                        text = "SECURE MESSAGING CHANNEL",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "Please tap any peer profile from the directory carousel above to establish a secure E2EE chat tunnel, or tap ADD to register new Google Chat or SMS contacts.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.widthIn(max = 280.dp)
+                    )
+                }
+            }
+        }
+    }
+
+    // Add Contact Pop-up Dialog
+    if (showAddContactDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddContactDialog = false },
+            containerColor = CyberDarkSurface,
+            title = {
+                Text(
+                    "ADD SECURE DISPATCH CONTACT",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = CyberBlue,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Register a cryptographic peer handle, Google Chat email, or SMS phone number to support client-side payload encryption.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+
+                    OutlinedTextField(
+                        value = newContactName,
+                        onValueChange = { newContactName = it },
+                        label = { Text("Display Name", color = TextSecondary) },
+                        placeholder = { Text("e.g. Alice Watson", color = TextSecondary) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberBlue,
+                            unfocusedBorderColor = CyberBorder
+                        ),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = newContactAddress,
+                        onValueChange = { newContactAddress = it },
+                        label = { Text("Network Address", color = TextSecondary) },
+                        placeholder = {
+                            Text(
+                                text = when (newContactType) {
+                                    "GOOGLE_CHAT" -> "e.g. alice@gmail.com"
+                                    "SMS" -> "e.g. +155512345"
+                                    else -> "e.g. alice.i2p"
+                                },
+                                color = TextSecondary
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberBlue,
+                            unfocusedBorderColor = CyberBorder
+                        ),
+                        singleLine = true
+                    )
+
+                    // Network Platform selector
+                    Text(
+                        "INTEGRATED CARRIER TRANSPORT",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("SECURE_I2P", "GOOGLE_CHAT", "SMS").forEach { type ->
+                            val isSelected = newContactType == type
+                            val typeLabel = when (type) {
+                                "SECURE_I2P" -> "I2P Garlic"
+                                "GOOGLE_CHAT" -> "Google Chat"
+                                "SMS" -> "Secure SMS"
+                                else -> ""
+                            }
+                            val typeColor = when (type) {
+                                "SECURE_I2P" -> CyberGreen
+                                "GOOGLE_CHAT" -> CyberYellow
+                                "SMS" -> CyberBlue
+                                else -> CyberPurple
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        if (isSelected) typeColor.copy(alpha = 0.2f) else CyberBlack,
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) typeColor else CyberBorder,
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .clickable { newContactType = type }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = typeLabel,
+                                    fontSize = 9.sp,
+                                    color = if (isSelected) typeColor else TextSecondary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newContactName.isNotEmpty() && newContactAddress.isNotEmpty()) {
+                            viewModel.addContact(newContactName, newContactAddress, newContactType)
+                            showAddContactDialog = false
+                            newContactName = ""
+                            newContactAddress = ""
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CyberBlue, contentColor = CyberBlack),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text("SAVE PEER", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showAddContactDialog = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary)
+                ) {
+                    Text("CANCEL")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun ContactMessageBubble(
+    msg: SecureMessage,
+    contact: Contact
+) {
+    val formatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val timeStr = formatter.format(Date(msg.timestamp))
+    val isOutgoing = !msg.isIncoming
+    val contactColor = Color(android.graphics.Color.parseColor(contact.avatarColorHex))
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalAlignment = if (isOutgoing) Alignment.End else Alignment.Start
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (isOutgoing) Arrangement.End else Arrangement.Start,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            if (!isOutgoing) {
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .background(contactColor.copy(alpha = 0.15f), CircleShape)
+                        .border(1.dp, contactColor, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = contact.name.take(1).uppercase(),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = contactColor
+                    )
+                }
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+
+            Column(
+                horizontalAlignment = if (isOutgoing) Alignment.End else Alignment.Start
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val serviceIcon = when (contact.type) {
+                        "GOOGLE_CHAT" -> Icons.Default.AlternateEmail
+                        "SMS" -> Icons.Default.Sms
+                        else -> Icons.Default.Lock
+                    }
+                    Icon(
+                        imageVector = serviceIcon,
+                        contentDescription = contact.type,
+                        tint = contactColor,
+                        modifier = Modifier.size(9.dp)
+                    )
+                    Text(
+                        text = if (isOutgoing) "SECURE DISPATCH" else contact.name.uppercase(),
+                        fontSize = 8.sp,
+                        color = if (isOutgoing) CyberGreen else CyberPurple,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = if (isOutgoing) CyberBorder.copy(alpha = 0.6f) else CyberDarkSurface,
+                            shape = RoundedCornerShape(
+                                topStart = 10.dp,
+                                topEnd = 10.dp,
+                                bottomStart = if (isOutgoing) 10.dp else 0.dp,
+                                bottomEnd = if (isOutgoing) 0.dp else 10.dp
+                            )
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = if (isOutgoing) CyberGreen.copy(alpha = 0.3f) else CyberPurple.copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(
+                                topStart = 10.dp,
+                                topEnd = 10.dp,
+                                bottomStart = if (isOutgoing) 10.dp else 0.dp,
+                                bottomEnd = if (isOutgoing) 0.dp else 10.dp
+                            )
+                        )
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .widthIn(max = 240.dp)
+                ) {
+                    Column {
+                        Text(
+                            text = msg.decryptedBody ?: "[Encrypted Payload]",
+                            color = TextPrimary,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = timeStr,
+                                fontSize = 8.sp,
+                                color = TextSecondary
+                            )
+                            if (isOutgoing) {
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Delivered",
+                                    tint = CyberGreen,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (isOutgoing) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .background(CyberPurple.copy(alpha = 0.15f), CircleShape)
+                        .border(1.dp, CyberPurple, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "ME",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CyberPurple
+                    )
                 }
             }
         }
@@ -3877,5 +5846,668 @@ fun PeerRowItem(peer: DiscoveredPeer) {
                 }
             }
         }
+    }
+}
+
+enum class VpnVpsSubTab(val label: String) {
+    VPN("SECURE VPN"),
+    VPS("VPS / HOME NODE")
+}
+
+@Composable
+fun VpnVpsScreen(
+    viewModel: I2PViewModel,
+    modifier: Modifier = Modifier
+) {
+    var activeSubTab by remember { mutableStateOf(VpnVpsSubTab.VPN) }
+    val vpnState by viewModel.vpnState.collectAsState()
+    val vpsState by viewModel.vpsState.collectAsState()
+    
+    // Dialog states for VPS profile creation
+    var showAddVpsDialog by remember { mutableStateOf(false) }
+    var vpsNameInput by remember { mutableStateOf("") }
+    var vpsIpInput by remember { mutableStateOf("") }
+    var vpsUserInput by remember { mutableStateOf("") }
+    var vpsPortInput by remember { mutableStateOf("22") }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(CyberBlack)
+    ) {
+        // Tab header
+        TabRow(
+            selectedTabIndex = activeSubTab.ordinal,
+            containerColor = CyberDarkSurface,
+            contentColor = CyberGreen,
+            indicator = { tabPositions ->
+                TabRowDefaults.Indicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[activeSubTab.ordinal]),
+                    color = CyberGreen
+                )
+            }
+        ) {
+            VpnVpsSubTab.values().forEach { tab ->
+                val isSelected = activeSubTab == tab
+                Tab(
+                    selected = isSelected,
+                    onClick = { activeSubTab = tab },
+                    text = {
+                        Text(
+                            tab.label,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                )
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (activeSubTab == VpnVpsSubTab.VPN) {
+                // VPN Tab
+                item {
+                    Text(
+                        text = "VIRTUAL PRIVATE NETWORKS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyberGreen,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                }
+
+                // Active connection status card
+                item {
+                    val statusColor = when (vpnState.status) {
+                        VpnStatus.CONNECTED -> CyberGreen
+                        VpnStatus.CONNECTING -> CyberOrange
+                        VpnStatus.DISCONNECTED -> CyberRed
+                    }
+                    val statusLabel = when (vpnState.status) {
+                        VpnStatus.CONNECTED -> "SECURE END-TO-END ESCROW ACTIVE"
+                        VpnStatus.CONNECTING -> "ESTABLISHING HANDSHAKE..."
+                        VpnStatus.DISCONNECTED -> "ROUTING UNPROTECTED BY VPN"
+                    }
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                        border = BorderStroke(1.dp, if (vpnState.status == VpnStatus.CONNECTED) CyberGreen else CyberBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(statusColor, CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = vpnState.status.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = statusColor,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                                Icon(
+                                    imageVector = if (vpnState.status == VpnStatus.CONNECTED) Icons.Default.Security else Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = statusColor,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = statusLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextSecondary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            
+                            if (vpnState.status == VpnStatus.CONNECTED) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Divider(color = CyberBorder.copy(alpha = 0.5f))
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text("Transmitted", fontSize = 10.sp, color = TextSecondary)
+                                        Text(
+                                            String.format(java.util.Locale.US, "%.2f MB", vpnState.bytesTransmitted / (1024f * 1024f)),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = TextPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                    Column {
+                                        Text("Uptime", fontSize = 10.sp, color = TextSecondary)
+                                        Text(
+                                            String.format(java.util.Locale.US, "%02d:%02d", vpnState.connectedDurationSeconds / 60, vpnState.connectedDurationSeconds % 60),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = TextPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                    Column {
+                                        Text("Interface", fontSize = 10.sp, color = TextSecondary)
+                                        Text(
+                                            "tun0 (IKEv2)",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = CyberBlue,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Connect / Disconnect button
+                item {
+                    val isConnected = vpnState.status == VpnStatus.CONNECTED
+                    val isConnecting = vpnState.status == VpnStatus.CONNECTING
+                    Button(
+                        onClick = { viewModel.toggleVpn() },
+                        enabled = !isConnecting,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isConnected) CyberRed else CyberGreen,
+                            contentColor = CyberBlack,
+                            disabledContainerColor = CyberBorder
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("vpn_toggle_button"),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = if (isConnecting) "NEGOTIATING KEYS..." else if (isConnected) "TERMINATE VPN TUNNEL" else "INITIATE SECURE VPN",
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
+
+                // VPN Configuration selector
+                item {
+                    Text(
+                        text = "AVAILABLE SECURE ENDPOINTS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                }
+
+                items(vpnState.availableVpns) { config ->
+                    val isSelected = vpnState.selectedVpn == config.name
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) CyberGreen.copy(alpha = 0.05f) else CyberDarkSurface
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSelected) CyberGreen else CyberBorder
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = vpnState.status == VpnStatus.DISCONNECTED) {
+                                viewModel.selectVpn(config.name)
+                            }
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    RadioButton(
+                                        selected = isSelected,
+                                        onClick = { if (vpnState.status == VpnStatus.DISCONNECTED) viewModel.selectVpn(config.name) },
+                                        enabled = vpnState.status == VpnStatus.DISCONNECTED,
+                                        colors = RadioButtonDefaults.colors(selectedColor = CyberGreen)
+                                    )
+                                    Column {
+                                        Text(
+                                            text = config.name,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary
+                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = config.speedRating,
+                                                fontSize = 9.sp,
+                                                color = CyberBlue,
+                                                fontFamily = FontFamily.Monospace,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Box(modifier = Modifier.size(3.dp).background(TextSecondary, CircleShape))
+                                            Text(
+                                                text = "Ping: ${config.pingMs}ms",
+                                                fontSize = 9.sp,
+                                                color = CyberOrange,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                if (config.recommended) {
+                                    Box(
+                                        modifier = Modifier
+                                            .background(CyberGreen.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                            .border(0.5.dp, CyberGreen, RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "RECOMMENDED",
+                                            fontSize = 7.sp,
+                                            color = CyberGreen,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Default.Lock, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(10.dp))
+                                Text(
+                                    text = "Encryption: ${config.securityLevel}",
+                                    fontSize = 9.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Help/Recommendation Section
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                        border = BorderStroke(1.dp, CyberBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Info, contentDescription = null, tint = CyberGreen, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("AISP PROXY GUIDELINES", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 12.sp)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "While darkweb garlic networks encrypt routing layers between network peers, they do not mask your ISP's trace of initial gateway connections. We highly recommend utilizing Private VPN (ShadowTunnel) as it encapsulates your garlic packages inside quantum-resistant metadata packets, hiding network topology entirely from external eavesdroppers.",
+                                fontSize = 10.sp,
+                                color = TextSecondary,
+                                lineHeight = 14.sp
+                            )
+                        }
+                    }
+                }
+
+            } else {
+                // VPS / Home Portal Tab
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "SSH ROUTING PROXIES",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CyberGreen,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                        Button(
+                            onClick = { showAddVpsDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = CyberBlue.copy(alpha = 0.15f), contentColor = CyberBlue),
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(1.dp, CyberBlue),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(12.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("ADD VPS", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // Remote status monitor card (Visible when connected)
+                item {
+                    val statusColor = when (vpsState.status) {
+                        VpsStatus.CONNECTED -> CyberBlue
+                        VpsStatus.CONNECTING -> CyberOrange
+                        VpsStatus.DISCONNECTED -> TextSecondary
+                    }
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                        border = BorderStroke(1.dp, if (vpsState.status == VpsStatus.CONNECTED) CyberBlue else CyberBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier.size(8.dp).background(statusColor, CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "PORTAL: ${vpsState.status.name}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = statusColor,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.Cloud,
+                                    contentDescription = null,
+                                    tint = statusColor,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            
+                            vpsState.activeProfile?.let { profile ->
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Connected gateway: ${profile.name} (${profile.ipAddress})",
+                                    fontSize = 10.sp,
+                                    color = TextSecondary
+                                )
+                            }
+
+                            if (vpsState.status == VpsStatus.CONNECTED) {
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Divider(color = CyberBorder.copy(alpha = 0.4f))
+                                Spacer(modifier = Modifier.height(14.dp))
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    // CPU Indicator
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("VPS CPU", fontSize = 9.sp, color = TextSecondary)
+                                            Text("${vpsState.cpuUsagePercent}%", fontSize = 9.sp, color = CyberBlue, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        LinearProgressIndicator(
+                                            progress = vpsState.cpuUsagePercent / 100f,
+                                            modifier = Modifier.fillMaxWidth().height(4.dp),
+                                            color = CyberBlue,
+                                            trackColor = CyberBorder
+                                        )
+                                    }
+                                    
+                                    // RAM Indicator
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("VPS RAM", fontSize = 9.sp, color = TextSecondary)
+                                            Text("${vpsState.ramUsagePercent}%", fontSize = 9.sp, color = CyberOrange, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        LinearProgressIndicator(
+                                            progress = vpsState.ramUsagePercent / 100f,
+                                            modifier = Modifier.fillMaxWidth().height(4.dp),
+                                            color = CyberOrange,
+                                            trackColor = CyberBorder
+                                        )
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Gateway Proxy Speed", fontSize = 10.sp, color = TextSecondary)
+                                    Text(
+                                        String.format(java.util.Locale.US, "%.1f Mbps", vpsState.bandwidthUsageMbps),
+                                        fontSize = 11.sp,
+                                        color = CyberGreen,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Connected VPS control button
+                if (vpsState.status != VpsStatus.DISCONNECTED) {
+                    item {
+                        Button(
+                            onClick = { viewModel.disconnectVps() },
+                            colors = ButtonDefaults.buttonColors(containerColor = CyberRed, contentColor = CyberBlack),
+                            modifier = Modifier.fillMaxWidth().height(40.dp)
+                        ) {
+                            Text("DISCONNECT PROXY ROUTER", fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                        }
+                    }
+                }
+
+                // List of profiles
+                item {
+                    Text(
+                        text = "SAVED GATEWAY PROFILES",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                }
+
+                if (vpsState.savedProfiles.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(CyberDarkSurface, RoundedCornerShape(6.dp))
+                                .border(1.dp, CyberBorder, RoundedCornerShape(6.dp))
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("No VPS profiles added. Tap ADD VPS above to register.", fontSize = 11.sp, color = TextSecondary, textAlign = TextAlign.Center)
+                        }
+                    }
+                }
+
+                items(vpsState.savedProfiles) { profile ->
+                    val isConnectedToThis = vpsState.activeProfile == profile
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                        border = BorderStroke(1.dp, if (isConnectedToThis) CyberBlue else CyberBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Dns,
+                                        contentDescription = null,
+                                        tint = if (isConnectedToThis) CyberBlue else TextSecondary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Column {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text(profile.name, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                            if (profile.isDefault) {
+                                                Text(
+                                                    "DEFAULT",
+                                                    fontSize = 7.sp,
+                                                    color = CyberGreen,
+                                                    modifier = Modifier
+                                                        .background(CyberGreen.copy(alpha = 0.12f), RoundedCornerShape(2.dp))
+                                                        .padding(horizontal = 4.dp, vertical = 1.dp),
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            "${profile.username}@${profile.ipAddress}:${profile.port}",
+                                            fontSize = 10.sp,
+                                            color = TextSecondary,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                                
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    if (vpsState.status == VpsStatus.DISCONNECTED) {
+                                        Button(
+                                            onClick = { viewModel.connectVps(profile) },
+                                            colors = ButtonDefaults.buttonColors(containerColor = CyberBlue, contentColor = CyberBlack),
+                                            shape = RoundedCornerShape(4.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                            modifier = Modifier.height(26.dp)
+                                        ) {
+                                            Text("CONNECT", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = { viewModel.removeVpsProfile(profile) },
+                                        modifier = Modifier.size(26.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete VPS Profile", tint = CyberRed, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Add VPS Profile Dialog
+    if (showAddVpsDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddVpsDialog = false },
+            title = { Text("Add Remote VPS Gateway", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = vpsNameInput,
+                        onValueChange = { vpsNameInput = it },
+                        label = { Text("Profile Name", color = TextSecondary) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberBlue,
+                            unfocusedBorderColor = CyberBorder
+                        )
+                    )
+                    OutlinedTextField(
+                        value = vpsIpInput,
+                        onValueChange = { vpsIpInput = it },
+                        label = { Text("IP Address / Hostname", color = TextSecondary) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberBlue,
+                            unfocusedBorderColor = CyberBorder
+                        )
+                    )
+                    OutlinedTextField(
+                        value = vpsUserInput,
+                        onValueChange = { vpsUserInput = it },
+                        label = { Text("Username", color = TextSecondary) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberBlue,
+                            unfocusedBorderColor = CyberBorder
+                        )
+                    )
+                    OutlinedTextField(
+                        value = vpsPortInput,
+                        onValueChange = { vpsPortInput = it },
+                        label = { Text("SSH Port", color = TextSecondary) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberBlue,
+                            unfocusedBorderColor = CyberBorder
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (vpsNameInput.isNotEmpty() && vpsIpInput.isNotEmpty() && vpsUserInput.isNotEmpty()) {
+                            val port = vpsPortInput.toIntOrNull() ?: 22
+                            viewModel.addVpsProfile(vpsNameInput, vpsIpInput, vpsUserInput, port)
+                        }
+                        showAddVpsDialog = false
+                        vpsNameInput = ""
+                        vpsIpInput = ""
+                        vpsUserInput = ""
+                        vpsPortInput = "22"
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CyberBlue, contentColor = CyberBlack)
+                ) {
+                    Text("Save Node")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddVpsDialog = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            },
+            containerColor = CyberDarkSurface
+        )
     }
 }
