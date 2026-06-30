@@ -41,8 +41,15 @@ More detail: [Security Boundaries](docs/SECURITY_BOUNDARIES.md).
 Use the reproducible test plan before cutting or reviewing alpha releases:
 
 - [Real Alpha Test Plan](docs/REAL_ALPHA_TEST_PLAN.md)
+- [Real Device Testing](docs/REAL_DEVICE_TESTING.md)
 - [Build Toolchain](docs/BUILD_TOOLCHAIN.md)
 - Local verification script: `.\scripts\local-release-verify.ps1`
+
+## Real Device Testing
+
+For emulator and physical Android testing against Java I2P or i2pd, see:
+
+- [Real Device Testing](docs/REAL_DEVICE_TESTING.md)
 
 ## Endpoint Defaults
 

@@ -19,6 +19,12 @@ Run before testing:
 
 If Java/JDK preflight fails, see [Build Toolchain](BUILD_TOOLCHAIN.md). Local release verification requires Java 21 or newer plus the Android SDK.
 
+For emulator and physical Android test setup, see [Real Device Testing](REAL_DEVICE_TESTING.md).
+
+## Real Device / Emulator Signoff
+
+Before tagging real-alpha releases that touch networking behavior, run the real device or emulator checklist in `docs/REAL_DEVICE_TESTING.md`.
+
 ## Test Matrix
 
 | Case | Setup | Expected UI |
