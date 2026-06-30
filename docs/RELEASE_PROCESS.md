@@ -88,20 +88,39 @@ Replace tag name and message per release. Do not tag from feature branches.
 
 GitHub Actions builds the debug APK artifact. This artifact is for real-alpha testing only. It is not a production signed Play Store release.
 
+The Android workflow artifact contract is:
+
+- Artifact name: `i2p-knoks-debug-apk`
+- Artifact path: `app/build/outputs/apk/debug/*.apk`
+- Build type: debug
+- Intended use: real-alpha testing only
+- Not production signed
+- Not a Play Store release
+
+Print the expected artifact contract locally with:
+
+```powershell
+.\scripts\print-artifact-info.ps1
+```
+
 Use the workflow run for the intended commit or tag:
 
 1. Open the repository Actions tab.
 2. Select the Android workflow run for the release commit/tag.
 3. Confirm the run completed successfully.
-4. Download the debug APK artifact.
-5. Install it on an emulator or test device.
-6. Run the real-alpha smoke checks.
+4. Confirm the step summary names `i2p-knoks-debug-apk`.
+5. Download the debug APK artifact.
+6. Confirm the artifact contains the debug APK from `app/build/outputs/apk/debug/*.apk`.
+7. Install it on an emulator or test device.
+8. Run the real-alpha smoke checks.
 
 ## APK Artifact Checklist
 
 - [ ] Workflow run belongs to expected commit
 - [ ] Workflow run completed successfully
-- [ ] Artifact name matches expected debug APK artifact
+- [ ] Step summary describes real-alpha debug APK use
+- [ ] Artifact name is `i2p-knoks-debug-apk`
+- [ ] Artifact contains `app/build/outputs/apk/debug/*.apk`
 - [ ] APK installed on emulator or test device
 - [ ] App opens
 - [ ] Security Boundaries visible
