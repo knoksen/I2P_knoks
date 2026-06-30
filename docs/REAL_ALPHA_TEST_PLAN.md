@@ -17,6 +17,8 @@ Run before testing:
 .\scripts\local-release-verify.ps1
 ```
 
+If Java/JDK preflight fails, see [Build Toolchain](BUILD_TOOLCHAIN.md). Local release verification requires Java 21 or newer plus the Android SDK.
+
 ## Test Matrix
 
 | Case | Setup | Expected UI |
