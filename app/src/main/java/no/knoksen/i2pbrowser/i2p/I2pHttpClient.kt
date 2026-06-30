@@ -86,7 +86,7 @@ class OkHttpI2pTransport(
                 finalUrl = response.request.url.toString(),
                 headers = response.headers.toMap(),
                 contentType = response.body?.contentType()?.toString(),
-                contentLength = response.body?.contentLength(),
+                contentLength = I2pHttpClient.normalizeContentLength(response.body?.contentLength()),
                 redirectLocation = response.header("Location"),
                 elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt),
                 body = response.peekBody((MAX_BODY_PREVIEW_CHARS * 4).toLong()).string()
@@ -179,7 +179,8 @@ open class I2pHttpClient(
 
         fun normalizeUrl(url: String): String {
             val trimmed = url.trim()
-            return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed else "http://$trimmed"
+            val lower = trimmed.lowercase(Locale.US)
+            return if (lower.startsWith("http://") || lower.startsWith("https://")) trimmed else "http://$trimmed"
         }
 
         fun isI2pUrl(url: String): Boolean {
@@ -187,6 +188,15 @@ open class I2pHttpClient(
             val host = runCatching { URI(normalizedUrl).host }.getOrNull()
                 ?: normalizedUrl.substringAfter("://").substringBefore("/").substringBefore(":")
             return host.lowercase(Locale.US).endsWith(".i2p")
+        }
+
+        fun isI2pRedirectTarget(url: String): Boolean {
+            val host = runCatching { URI(normalizeUrl(url)).host }.getOrNull()
+            return host?.lowercase(Locale.US)?.endsWith(".i2p") == true
+        }
+
+        fun normalizeContentLength(contentLength: Long?): Long? {
+            return contentLength?.takeIf { it >= 0 }
         }
 
         fun isValidHttpUrl(url: String): Boolean {

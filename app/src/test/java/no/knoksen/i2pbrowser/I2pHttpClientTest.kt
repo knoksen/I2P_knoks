@@ -21,6 +21,23 @@ class I2pHttpClientTest {
     }
 
     @Test
+    fun `normalize url keeps uppercase scheme`() {
+        assertEquals("HTTP://site.i2p", I2pHttpClient.normalizeUrl("HTTP://site.i2p"))
+        assertEquals("HTTPS://site.i2p", I2pHttpClient.normalizeUrl("HTTPS://site.i2p"))
+    }
+
+    @Test
+    fun `redirect target parser accepts only i2p hosts`() {
+        assertTrue(I2pHttpClient.isI2pRedirectTarget("http://target.i2p"))
+        assertTrue(I2pHttpClient.isI2pRedirectTarget("http://target.i2p/"))
+        assertTrue(I2pHttpClient.isI2pRedirectTarget("http://target.i2p/path"))
+        assertTrue(I2pHttpClient.isI2pRedirectTarget("http://target.i2p?x=1"))
+
+        assertEquals(false, I2pHttpClient.isI2pRedirectTarget("http://evil.com/?next=target.i2p"))
+        assertEquals(false, I2pHttpClient.isI2pRedirectTarget("http://noti2p.example"))
+    }
+
+    @Test
     fun `non i2p url returns simulated preview without transport`() = runTest {
         val client = I2pHttpClient(
             transport = { _ -> error("Transport should not run for non-.i2p URLs") }
@@ -146,6 +163,29 @@ class I2pHttpClientTest {
 
         assertEquals(I2pFetchMode.UNSUPPORTED_CONTENT_TYPE, result.mode)
         assertTrue(result.bodyPreview!!.contains("Preview skipped"))
+    }
+
+    @Test
+    fun `unknown content length remains absent instead of negative`() = runTest {
+        assertNull(I2pHttpClient.normalizeContentLength(-1))
+        assertNull(I2pHttpClient.normalizeContentLength(null))
+        assertEquals(128L, I2pHttpClient.normalizeContentLength(128))
+
+        val client = I2pHttpClient(
+            transport = { _ ->
+                HttpTransportResponse(
+                    statusCode = 200,
+                    contentType = "text/plain",
+                    contentLength = null,
+                    body = "no length header"
+                )
+            }
+        )
+
+        val result = client.fetch("unknown-length.i2p")
+
+        assertEquals(I2pFetchMode.REAL_PROXY_OK, result.mode)
+        assertNull(result.contentLength)
     }
 
     @Test

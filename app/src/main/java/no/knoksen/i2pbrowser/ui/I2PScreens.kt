@@ -50,6 +50,7 @@ import no.knoksen.i2pbrowser.AppExperienceMode
 import no.knoksen.i2pbrowser.i2p.I2pDiagnosticsSummary
 import no.knoksen.i2pbrowser.i2p.I2pEndpointConfig
 import no.knoksen.i2pbrowser.i2p.I2pFetchMode
+import no.knoksen.i2pbrowser.i2p.I2pHttpClient
 import no.knoksen.i2pbrowser.i2p.RealAlphaReadiness
 import no.knoksen.i2pbrowser.i2p.RealAlphaStatus
 import no.knoksen.i2pbrowser.i2p.SamSessionState
@@ -1936,7 +1937,7 @@ fun BrowserScreen(
                                             Text("COPY ERROR", fontSize = 10.sp, color = CyberOrange, fontWeight = FontWeight.Bold)
                                         }
                                     }
-                                    tabState.fetchRedirectLocation?.takeIf { it.endsWith(".i2p") || it.contains(".i2p/") }?.let { redirectTarget ->
+                                    tabState.fetchRedirectLocation?.takeIf { I2pHttpClient.isI2pRedirectTarget(it) }?.let { redirectTarget ->
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
