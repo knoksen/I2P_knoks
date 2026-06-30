@@ -1,0 +1,53 @@
+name: Dependency Report
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "app/build.gradle.kts"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle/libs.versions.toml"
+      - ".github/workflows/dependency-report.yml"
+
+jobs:
+  dependency-report:
+    name: Generate dependency reports
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate dependency reports
+        run: |
+          mkdir -p build/reports/dependencies
+          ./gradlew :app:dependencies --configuration debugRuntimeClasspath > build/reports/dependencies/debugRuntimeClasspath.txt
+          ./gradlew :app:dependencies --configuration debugUnitTestRuntimeClasspath > build/reports/dependencies/debugUnitTestRuntimeClasspath.txt
+
+      - name: Upload dependency reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: i2p-knoks-dependency-reports
+          path: build/reports/dependencies/*.txt
+          if-no-files-found: error
+
+      - name: Write dependency summary
+        run: |
+          {
+            echo "## I2P Knoks Dependency Reports"
+            echo ""
+            echo "- Artifact: \`i2p-knoks-dependency-reports\`"
+            echo "- Runtime configuration: \`debugRuntimeClasspath\`"
+            echo "- Test configuration: \`debugUnitTestRuntimeClasspath\`"
+            echo "- Intended use: dependency review and release-quality checks"
+          } >> "$GITHUB_STEP_SUMMARY"
