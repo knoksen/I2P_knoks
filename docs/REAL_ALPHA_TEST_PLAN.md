@@ -25,6 +25,13 @@ For emulator and physical Android test setup, see [Real Device Testing](REAL_DEV
 
 Before tagging real-alpha releases that touch networking behavior, run the real device or emulator checklist in `docs/REAL_DEVICE_TESTING.md`.
 
+## Release Signoff
+
+Before tagging a real-alpha release, follow:
+
+- [Release Process](RELEASE_PROCESS.md)
+- [Real Device Testing](REAL_DEVICE_TESTING.md)
+
 ## Test Matrix
 
 | Case | Setup | Expected UI |

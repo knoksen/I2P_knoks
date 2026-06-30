@@ -51,6 +51,13 @@ For emulator and physical Android testing against Java I2P or i2pd, see:
 
 - [Real Device Testing](docs/REAL_DEVICE_TESTING.md)
 
+## Release Process
+
+For real-alpha release verification, tagging, APK artifact handling, and release notes, see:
+
+- [Release Process](docs/RELEASE_PROCESS.md)
+- [Changelog Template](docs/CHANGELOG_TEMPLATE.md)
+
 ## Endpoint Defaults
 
 Default local endpoint:
