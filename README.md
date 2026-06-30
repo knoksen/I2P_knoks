@@ -38,6 +38,7 @@ More detail: [Security Boundaries](docs/SECURITY_BOUNDARIES.md).
 Use the reproducible test plan before cutting or reviewing alpha releases:
 
 - [Real Alpha Test Plan](docs/REAL_ALPHA_TEST_PLAN.md)
+- [Build Toolchain](docs/BUILD_TOOLCHAIN.md)
 - Local verification script: `.\scripts\local-release-verify.ps1`
 
 ## Endpoint Defaults
@@ -62,14 +63,20 @@ No VPN service permission or background routing service is expected for the curr
 
 Prerequisites:
 
-- JDK 17
+- JDK 21 or newer
 - Android SDK for the configured `compileSdk`
 - Included Gradle wrapper
+
+Recommended Windows JDK install:
+
+```powershell
+winget install EclipseAdoptium.Temurin.21.JDK
+```
 
 Verify locally:
 
 ```powershell
-.\gradlew.bat clean testDebugUnitTest assembleDebug
+.\scripts\local-release-verify.ps1
 ```
 
 Run the release-facing claim check:
