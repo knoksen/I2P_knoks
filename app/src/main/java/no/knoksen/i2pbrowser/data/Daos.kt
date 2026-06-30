@@ -1,4 +1,4 @@
-package com.example.data
+package no.knoksen.i2pbrowser.data
 
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow

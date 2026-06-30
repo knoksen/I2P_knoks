@@ -1,11 +1,17 @@
-# 🌌 I2P Browser & Garlic Network Escrow
+# I2P Knoks Browser
 
 [![Windows Desktop Build](https://img.shields.io/badge/Windows_Desktop-v1.2.0--stable-0078d4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/)
 [![PWA Quick Launch](https://img.shields.io/badge/PWA_Quick_Launch-Active--Online-3178c6?style=for-the-badge&logo=typescript&logoColor=white)](https://ais-pre-lotxsxijwzctq7cadhhava-983598203489.europe-west2.run.app)
-[![Garlic Routing](https://img.shields.io/badge/Garlic_Routing-AES--256_--_RSA--4096-4caf50?style=for-the-badge&logo=security&logoColor=white)](https://github.com/)
+[![I2P Mode](https://img.shields.io/badge/I2P-SAM_optional-4caf50?style=for-the-badge&logo=security&logoColor=white)](https://geti2p.net/)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack_Compose_--_Material_3-4285f4?style=for-the-badge&logo=android&logoColor=white)](https://github.com/)
 
-A modern, high-security, **garlic-routing browser and network console simulator** built using **Kotlin, Jetpack Compose (Material 3), and SQLite Room**. It simulates the Invisible Internet Project (I2P) network layer, complete with localized encryption tunnels, VPS routing gateways, and end-to-end cryptographic communications.
+A Jetpack Compose / Room Android network console for exploring I2P-style workflows. The app is primarily a simulator, with an MVP-level real I2P detection path through a local SAM bridge on `127.0.0.1:7656`.
+
+Current truth model:
+
+- `REAL_I2P`: a local I2P or i2pd router with SAM enabled answered the SAM hello/session handshake.
+- `SIMULATION`: no SAM bridge was detected; browser pages, router metrics, VPN/VPS controls, and messenger events are local previews only.
+- Secure Chat currently stores demo Base64 payloads and local simulated responses. It is not audited cryptography.
 
 ---
 
@@ -24,7 +30,7 @@ Access and deploy the application instantly across your devices with these quick
 ## 🖥️ SCREENSHOT SHOWCASE
 
 ### 1. Windows Desktop PWA & Gateway Controller
-*A preview of the dashboard interface running inside a dedicated Windows desktop frame, displaying encrypted garlic routing nodes, tunnel latency, and network tunnels.*
+*A preview of the dashboard interface running inside a dedicated Windows desktop frame, displaying simulated routing nodes, tunnel latency, and network panels.*
 
 <p align="center">
   <img src="assets/desktop_mockup.jpg" width="85%" alt="Windows Desktop PWA Interface" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" />
@@ -39,44 +45,42 @@ Access and deploy the application instantly across your devices with these quick
 
 ---
 
-## 📊 LIVE NETWORK SIMULATION STATISTICS
+## Live Network Simulation Statistics
 
 | Parameter | Value | Standard | Operational Status |
 | :--- | :--- | :--- | :--- |
-| **Primary Cipher** | `AES-GCM-256 / SHA-256` | Military Escrow | 🟢 ACTIVE (Quantum-Safe) |
-| **Signature Algorithm** | `Ed25519 / RedDSA` | I2P Spec v2.4 | 🟢 VERIFIED |
-| **Tunnel Uptime** | `99.998%` | High-Availability | 🟢 OPTIMAL |
-| **Average Tunnel Ping** | `12ms - 28ms` | Low-Latency Gateway | 🟢 FAST |
-| **Total Garlic Leasesets** | `4,192 Active` | Decentered Directory | 🟢 SYNCHRONIZED |
-| **Active Tunnel Bundles** | `8 Inbound / 8 Outbound` | Multi-Hop Escrow | 🟢 ESTABLISHED |
+| **SAM Bridge** | `127.0.0.1:7656` | I2P/i2pd local router | Real only when detected |
+| **Browser Rendering** | Compose preview content | Not WebView/proxy browsing | Simulated |
+| **Messenger Payloads** | Base64 demo storage | Not encryption | Simulated |
+| **VPN/VPS Controls** | UI state machines | Do not modify OS networking | Simulated |
+| **Router Metrics** | Generated telemetry | Real SAM detection only | Mixed MVP |
 
 ---
 
 ## 🛡️ KEY FUNCTIONAL MODULES
 
 ### 🌐 1. Router Console (Garlic Routing Topology)
-- Monitors active tunnels, lease sets, and peer node handshakes in real-time.
-- Visualizes network speed logs, bandwidth thresholds, and garlic-routing tunnel hop relays.
-- Dynamic debug logs reflecting underlying network layer transactions.
+- Detects a local SAM bridge and marks the app as `REAL_I2P` when the hello/session handshake succeeds.
+- Falls back to `SIMULATION` with setup guidance when SAM is missing or disabled.
+- Visualizes generated tunnel metrics and router logs for console prototyping.
 
 ### 🧭 2. Secure Web Browser
-- Browse simulation-safe darknet sites (e.g. `.i2p` domains).
+- Browse local preview pages for `.i2p`-style URLs.
 - Features an Address Book with custom bookmark creation.
-- **Safety Rating Escrow**: Categorizes bookmarks as `SAFE`, `SUSPICIOUS`, or `DANGEROUS` with color-coded warning banners.
+- Clearly labels content as simulated unless a local SAM bridge is active.
 
 ### 🔒 3. VPN & VPS Routing Portal
-- **Secure VPN Tunneling**: Toggle cryptographic tunnels (ShadowTunnel, Onion Shield) to encrypt the initial hop from your ISP.
-- **Remote VPS Gateway Manager**: Save, connect, and monitor private server node endpoints using SSH. Displays CPU usage, RAM allocation, and live bandwidth graphs.
+- Simulated VPN and VPS state controls for UI exploration.
+- Does not currently create OS-level VPN tunnels, SSH sessions, or network routes.
 
 ### 💬 4. Secure Messenger (P2P Chat)
-- Decentered peer messaging client utilizing RSA and AES encryption.
-- Direct key handshakes (exchanging Public Keys) to lock private communication channels.
-- Local SQLite database logging with instant message state validation.
+- Demo messenger with local SQLite storage and Base64 payload previews.
+- Requires a real crypto and transport backend before production or sensitive use.
 
 ### 🔑 5. Cryptographic Identity Panel
-- Generates a unique Base64 garlic destination identifier key pair.
-- Sign messages locally to verify authorship using cryptographic key signatures.
-- Toggle anonymity modes and refresh signature seeds.
+- Generates demo local identity material for previews.
+- Imports and displays peer keys for keyring UI workflows.
+- Invitation packet obfuscation is demo-only and not secure encryption.
 
 ---
 
@@ -124,7 +128,8 @@ This project uses modern Android Gradle toolchains. To build from source:
 
 ### Prerequisites
 - JDK 17
-- Android SDK (API 34)
+- Android SDK matching the project `compileSdk`
+- Android Studio or the included Gradle wrapper.
 
 ### Build Steps
 1. Clone this repository to your system.
@@ -134,6 +139,9 @@ This project uses modern Android Gradle toolchains. To build from source:
    ```bash
    # Compile Debug APK
    ./gradlew assembleDebug
+
+   # Run local JVM/Robolectric tests
+   ./gradlew testDebugUnitTest
    ```
 
 ---

@@ -1,19 +1,15 @@
-package com.example.ui
+package no.knoksen.i2pbrowser.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.data.*
+import no.knoksen.i2pbrowser.data.*
+import no.knoksen.i2pbrowser.i2p.SamBridgeClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStream
-import java.net.InetSocketAddress
-import java.net.Socket
 import kotlin.random.Random
 
 data class RouterState(
@@ -125,7 +121,11 @@ data class GpsEmulatorState(
     val localIsp: String = "Swiss Crypt-Services Ltd"
 )
 
-class I2PViewModel(application: Application) : AndroidViewModel(application) {
+class I2PViewModel @JvmOverloads constructor(
+    application: Application,
+    private val samBridgeClient: SamBridgeClient = SamBridgeClient(),
+    private val routerAnimationDelayScale: Float = 1f
+) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getDatabase(application)
     private val repository = I2PRepository(
@@ -167,7 +167,7 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _accessedNodesHistory = MutableStateFlow<List<AccessedNode>>(
         listOf(
-            AccessedNode("http://i2p-project.i2p", "I2P Project Homepage", System.currentTimeMillis(), "SECURE_TUNNEL")
+            AccessedNode("http://i2p-project.i2p", "I2P Project Homepage", System.currentTimeMillis(), "SIMULATED_PREVIEW")
         )
     )
     val accessedNodesHistory: StateFlow<List<AccessedNode>> = _accessedNodesHistory.asStateFlow()
@@ -205,68 +205,14 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
     private var lastLatencyExceeded = false
     private var lastLossExceeded = false
 
-    private var samSocket: Socket? = null
-
-    private suspend fun tryRealSamConnect(host: String, port: Int): String? {
-        return withContext(Dispatchers.IO) {
-            var socket: Socket? = null
-            try {
-                socket = Socket()
-                socket.connect(InetSocketAddress(host, port), 2000)
-                val writer = socket.getOutputStream()
-                val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
-
-                writer.write("HELLO VERSION MIN=3.0 MAX=3.1\n".toByteArray())
-                writer.flush()
-                val helloLine = reader.readLine() ?: ""
-                if (!helloLine.startsWith("HELLO REPLY") || !helloLine.contains("RESULT=OK")) {
-                    socket.close()
-                    return@withContext null
-                }
-
-                writer.write("SESSION CREATE STYLE=STREAM ID=AIS_I2P_SESSION DESTINATION=TRANSIENT\n".toByteArray())
-                writer.flush()
-                val sessionLine = reader.readLine() ?: ""
-                if (!sessionLine.startsWith("SESSION STATUS") || !sessionLine.contains("RESULT=OK")) {
-                    socket.close()
-                    return@withContext null
-                }
-
-                val destKeyword = "DESTINATION="
-                val destIndex = sessionLine.indexOf(destKeyword)
-                if (destIndex != -1) {
-                    val dest = sessionLine.substring(destIndex + destKeyword.length).trim()
-                    samSocket = socket
-                    return@withContext dest
-                }
-            } catch (e: Exception) {
-                try { socket?.close() } catch (ex: Exception) {}
-            }
-            null
+    private suspend fun routerAnimationDelay(durationMs: Long) {
+        if (routerAnimationDelayScale > 0f) {
+            delay((durationMs * routerAnimationDelayScale).toLong())
         }
     }
 
     suspend fun resolveRealI2pName(name: String): String? {
-        val socket = samSocket ?: return null
-        return withContext(Dispatchers.IO) {
-            try {
-                val writer = socket.getOutputStream()
-                val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
-                writer.write("NAMELOOKUP NAME=$name\n".toByteArray())
-                writer.flush()
-                val response = reader.readLine() ?: ""
-                if (response.startsWith("NAMELOOKUP REPLY") && response.contains("RESULT=OK")) {
-                    val valueKeyword = "VALUE="
-                    val idx = response.indexOf(valueKeyword)
-                    if (idx != -1) {
-                        return@withContext response.substring(idx + valueKeyword.length).trim()
-                    }
-                }
-            } catch (e: Exception) {
-                // Socket closed or error
-            }
-            null
-        }
+        return samBridgeClient.nameLookup(name)
     }
 
     fun updateSamConfig(host: String, port: Int) {
@@ -515,25 +461,31 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun connectRouter() {
+        viewModelScope.launch {
+            connectRouterForTest()
+        }
+    }
+
+    internal suspend fun connectRouterForTest() {
         if (_routerState.value.isConnected || _routerState.value.isConnecting) return
 
-        viewModelScope.launch {
             val host = _routerState.value.samHost
             val port = _routerState.value.samPort
             _routerState.update { it.copy(isConnecting = true, statusText = "Checking real SAM Bridge on $host:$port...") }
             repository.addLog("ROUTER", "Probing real SAM bridge on $host:$port...", "INFO")
             
             // Try connecting to real SAM API
-            val realDest = tryRealSamConnect(host, port)
+            val samResult = samBridgeClient.connect(host, port)
+            val realDest = samResult?.destination
             
             if (realDest != null) {
                 _routerState.update { it.copy(connectionProgress = 0.5f, statusText = "SAM v3.1 Handshake OK! Registering local Transient Session...") }
                 repository.addLog("ROUTER", "Real SAM API connected! Handshake OK.", "SUCCESS")
-                delay(800)
+                routerAnimationDelay(800)
                 
                 _routerState.update { it.copy(connectionProgress = 0.85f, statusText = "Real Session Active. Syncing LeaseSets...") }
                 repository.addLog("ROUTER", "Local Transient Destination registered successfully.", "SUCCESS")
-                delay(600)
+                routerAnimationDelay(600)
                 
                 val shortenedAddress = if (realDest.length > 16) realDest.take(8) + "..." + realDest.takeLast(8) + ".i2p" else realDest
                 
@@ -567,22 +519,22 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
                 repository.addLog("ROUTER", "I2P Garlic Router fully connected via real SAM API. Address: $shortenedAddress", "SUCCESS")
                 _networkAlerts.tryEmit("[I2P SYSTEM] Connected to REAL I2P network!")
             } else {
-                repository.addLog("ROUTER", "No local SAM Bridge active on $host:$port. Launching virtual I2P network engine...", "INFO")
-                _routerState.update { it.copy(connectionProgress = 0.15f, statusText = "Initializing Garlic Router Engine...") }
-                repository.addLog("ROUTER", "Starting simulated I2P garlic router daemon...", "INFO")
-                delay(1000)
+                repository.addLog("ROUTER", "No local SAM Bridge active on $host:$port. Falling back to local simulation mode.", "INFO")
+                _routerState.update { it.copy(connectionProgress = 0.15f, statusText = "Initializing local I2P preview simulator...") }
+                repository.addLog("ROUTER", "Starting simulated I2P console preview. No real traffic is routed.", "INFO")
+                routerAnimationDelay(1000)
 
-                _routerState.update { it.copy(connectionProgress = 0.4f, statusText = "Resolving NetDB profiles...") }
-                repository.addLog("NETDB", "Requesting NetDB reseeding from active routers...", "INFO")
-                delay(800)
+                _routerState.update { it.copy(connectionProgress = 0.4f, statusText = "Loading simulated NetDB profiles...") }
+                repository.addLog("NETDB", "Generating local simulated NetDB peers.", "INFO")
+                routerAnimationDelay(800)
 
-                _routerState.update { it.copy(connectionProgress = 0.65f, statusText = "Configuring ${_routerState.value.tunnelHops}-hop garlic tunnels...") }
-                repository.addLog("TUNNEL", "Building outbound and inbound tunnel leaseSets with ${_routerState.value.tunnelHops} hops.", "ROUTING")
-                delay(1000)
+                _routerState.update { it.copy(connectionProgress = 0.65f, statusText = "Configuring simulated ${_routerState.value.tunnelHops}-hop paths...") }
+                repository.addLog("TUNNEL", "Simulating outbound and inbound tunnel leaseSets with ${_routerState.value.tunnelHops} hops.", "ROUTING")
+                routerAnimationDelay(1000)
 
-                _routerState.update { it.copy(connectionProgress = 0.85f, statusText = "Exchanging leaseSet descriptors...") }
-                repository.addLog("GARLIC", "Signed leaseSet descriptors published securely.", "SUCCESS")
-                delay(600)
+                _routerState.update { it.copy(connectionProgress = 0.85f, statusText = "Preparing simulated leaseSet descriptors...") }
+                repository.addLog("GARLIC", "Simulated leaseSet descriptors generated locally.", "INFO")
+                routerAnimationDelay(600)
 
                 _routerState.update {
                     val hops = it.tunnelHops
@@ -598,24 +550,22 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
                         realDestination = "",
                         activeTunnels = 16,
                         knownPeers = 512,
-                        statusText = "Connected securely to I2P network",
+                        statusText = "SIMULATED I2P PREVIEW MODE - no real SAM bridge detected",
                         latencyMs = initialLatency,
                         packetLoss = initialLoss,
                         activePeerCount = initialPeers
                     )
                 }
-                repository.addLog("ROUTER", "I2P Garlic Router fully connected and listening.", "SUCCESS")
+                repository.addLog("ROUTER", "Simulation mode active. Install/run I2P or i2pd and enable SAM for real routing.", "WARN")
             }
-        }
     }
 
     fun disconnectRouter() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 try {
-                    samSocket?.close()
+                    samBridgeClient.close()
                 } catch (e: Exception) {}
-                samSocket = null
             }
             _routerState.update {
                 it.copy(
@@ -721,10 +671,11 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
                     url = cleanUrl,
                     title = pageTitle,
                     timestamp = System.currentTimeMillis(),
-                    connectionStatus = if (_routerState.value.isConnected) "SECURE_TUNNEL" else "UNSECURED_LOCAL"
+                    connectionStatus = if (_routerState.value.isRealI2p) "REAL_I2P" else "SIMULATED_PREVIEW"
                 )
             }
-            repository.addLog("PROXY", "Page loaded: $pageTitle ($cleanUrl) securely routed in ${routingDelay}ms.", "SUCCESS")
+            val routeMode = if (_routerState.value.isRealI2p) "via local SAM/I2P" else "as local simulated preview"
+            repository.addLog("PROXY", "Page loaded: $pageTitle ($cleanUrl) $routeMode in ${routingDelay}ms.", "INFO")
         }
     }
 
@@ -741,13 +692,12 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
         )
         val selected = urls.random()
         viewModelScope.launch {
-            val isConn = _routerState.value.isConnected
             _accessedNodesHistory.update { history ->
                 history + AccessedNode(
                     url = selected.first,
                     title = selected.second,
                     timestamp = System.currentTimeMillis(),
-                    connectionStatus = if (isConn) "SECURE_TUNNEL" else "UNSECURED_LOCAL"
+                    connectionStatus = if (_routerState.value.isRealI2p) "REAL_I2P" else "SIMULATED_PREVIEW"
                 )
             }
             repository.addLog("PROXY", "Node history recorded: ${selected.first} (${selected.second})", "INFO")
@@ -832,17 +782,16 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
             when (contact.type) {
                 "GOOGLE_CHAT" -> {
                     repository.addLog("GOOGLE_CHAT", "Initiating secure OTR handshake with Google Chat endpoint: ${contact.address}", "INFO")
-                    repository.addLog("CRYPT", "Establishing end-to-end encrypted session using Signal Protocol (X3DH/Double Ratchet)...", "SUCCESS")
-                    repository.addLog("GOOGLE_CHAT", "OTR-encrypted packet dispatched over OAuth2 TLS stream.", "SUCCESS")
+                    repository.addLog("CRYPT", "Demo messenger only: no audited Signal Protocol or OTR session is established.", "WARN")
+                    repository.addLog("GOOGLE_CHAT", "Demo payload stored locally; no Google Chat message was dispatched.", "INFO")
                 }
                 "SMS" -> {
-                    repository.addLog("SMS", "Encrypting message payload using Silence/Signal SMS format (A/B keys)...", "INFO")
-                    repository.addLog("CRYPT", "Diffie-Hellman SMS key exchange confirmed with peer: ${contact.address}", "SUCCESS")
-                    repository.addLog("SMS", "Dispatching multi-part encrypted PDU via cellular transport subsystem.", "SUCCESS")
+                    repository.addLog("SMS", "Demo messenger only: no cellular SMS PDU or Signal/Silence session is sent.", "WARN")
+                    repository.addLog("CRYPT", "Local demo payload encoded for UI preview only.", "INFO")
                 }
                 else -> {
-                    repository.addLog("CRYPT", "Encrypting garlic clove payload with ElGamal/AES-256 for ${contact.address}", "INFO")
-                    repository.addLog("TUNNEL", "Tunnel built: Outbound tunnel (Gate -> Proxy -> Endpoint)", "SUCCESS")
+                    repository.addLog("CRYPT", "Demo messenger payload encoded locally. Real crypto backend required for production.", "WARN")
+                    repository.addLog("TUNNEL", "Simulated tunnel event recorded for ${contact.address}.", "INFO")
                 }
             }
 
@@ -868,15 +817,15 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
 
             when (contact.type) {
                 "GOOGLE_CHAT" -> {
-                    repository.addLog("GOOGLE_CHAT", "Incoming encrypted push event from Google Chat servers...", "INFO")
-                    repository.addLog("CRYPT", "Double Ratchet key updated. Decrypting payload...", "SUCCESS")
+                    repository.addLog("GOOGLE_CHAT", "Simulated incoming Google Chat response.", "INFO")
+                    repository.addLog("CRYPT", "Demo response decoded locally.", "INFO")
                 }
                 "SMS" -> {
-                    repository.addLog("SMS", "Incoming encrypted SMS PDU received from cell tower...", "INFO")
-                    repository.addLog("CRYPT", "Wiping ephemeral session key buffer after decryption.", "SUCCESS")
+                    repository.addLog("SMS", "Simulated incoming SMS response.", "INFO")
+                    repository.addLog("CRYPT", "No ephemeral SMS key buffer exists in demo mode.", "WARN")
                 }
                 else -> {
-                    repository.addLog("GARLIC", "Received incoming Garlic Message from leaseSet of ${contact.address}", "ROUTING")
+                    repository.addLog("GARLIC", "Simulated incoming Garlic Message from ${contact.address}", "ROUTING")
                 }
             }
 
@@ -936,7 +885,7 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
         return "i2p://invite?alias=$safeName&addr=$safeAddress&pubkey=$safeKey"
     }
 
-    // Encrypt the invitation packet using a 6-digit numeric shared secret PIN (very secure out-of-band exchange!)
+    // Demo obfuscation only. This XOR packet is not audited cryptography.
     fun generateGarlicEncryptedInvite(name: String, address: String, publicKey: String, pin: String): String {
         val rawText = "$name|$address|$publicKey"
         val pinVal = pin.toIntOrNull() ?: 123456

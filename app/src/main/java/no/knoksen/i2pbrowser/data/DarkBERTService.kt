@@ -1,4 +1,4 @@
-package com.example.data
+package no.knoksen.i2pbrowser.data
 
 import com.squareup.moshi.JsonClass
 import okhttp3.OkHttpClient
@@ -79,7 +79,7 @@ object GeminiClient {
 }
 
 suspend fun queryDarkBERT(prompt: String): String = withContext(Dispatchers.IO) {
-    val apiKey = com.example.BuildConfig.GEMINI_API_KEY
+    val apiKey = no.knoksen.i2pbrowser.BuildConfig.GEMINI_API_KEY
     if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY" || apiKey == "null") {
         return@withContext getOfflineDarkBERTResponse(prompt)
     }

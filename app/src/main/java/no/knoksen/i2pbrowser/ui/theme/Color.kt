@@ -1,4 +1,4 @@
-package com.example.ui.theme
+package no.knoksen.i2pbrowser.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

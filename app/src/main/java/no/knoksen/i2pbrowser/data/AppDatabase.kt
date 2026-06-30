@@ -1,4 +1,4 @@
-package com.example.data
+package no.knoksen.i2pbrowser.data
 
 import android.content.Context
 import androidx.room.Database

@@ -1,4 +1,4 @@
-package com.example.ui
+package no.knoksen.i2pbrowser.ui
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -40,8 +40,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.onSizeChanged
 import kotlin.math.*
-import com.example.data.*
-import com.example.ui.theme.*
+import no.knoksen.i2pbrowser.data.*
+import no.knoksen.i2pbrowser.ui.theme.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -91,9 +91,14 @@ fun RouterScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                if (state.isConnected) "ACTIVE & ROUTING" else if (state.isConnecting) "BUILDING TUNNELS" else "OFFLINE",
+                                when {
+                                    state.isRealI2p -> "REAL I2P ROUTING"
+                                    state.isConnected -> "SIMULATION ACTIVE"
+                                    state.isConnecting -> "CHECKING SAM"
+                                    else -> "OFFLINE"
+                                },
                                 style = MaterialTheme.typography.titleLarge,
-                                color = if (state.isConnected) CyberGreen else if (state.isConnecting) CyberOrange else CyberRed,
+                                color = if (state.isRealI2p) CyberGreen else if (state.isConnected || state.isConnecting) CyberOrange else CyberRed,
                                 fontWeight = FontWeight.ExtraBold
                             )
                         }
@@ -135,7 +140,7 @@ fun RouterScreen(
                         Spacer(modifier = Modifier.height(12.dp))
                         LinearProgressIndicator(
                             progress = { 1.0f },
-                            color = CyberGreen,
+                            color = if (state.isRealI2p) CyberGreen else CyberOrange,
                             trackColor = CyberBorder,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -184,7 +189,7 @@ fun RouterScreen(
 
             Card(
                 colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-                border = BorderStroke(1.dp, if (state.isRealI2p) CyberGreen else CyberBorder),
+                            border = BorderStroke(1.dp, if (state.isRealI2p) CyberGreen else CyberOrange),
                 modifier = Modifier.fillMaxWidth().testTag("real_sam_config_card")
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -213,7 +218,7 @@ fun RouterScreen(
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = if (state.isRealI2p) "REAL ACTIVE" else "VIRTUAL ENGINE",
+                                text = if (state.isRealI2p) "REAL_I2P" else "SIMULATION",
                                 fontSize = 8.sp,
                                 color = if (state.isRealI2p) CyberGreen else CyberBlue,
                                 fontWeight = FontWeight.Bold,
@@ -225,7 +230,7 @@ fun RouterScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "To route traffic over the real peer-to-peer I2P network, run a local i2p/i2pd router with the SAM service enabled (default: 127.0.0.1:7656), and toggle the router switch above to initialize the handshake.",
+                        text = "To route real I2P traffic, run a local I2P or i2pd router with SAM enabled (default: 127.0.0.1:7656). Without SAM, this app stays in local simulation mode.",
                         style = MaterialTheme.typography.labelMedium,
                         color = TextSecondary
                     )
@@ -574,9 +579,9 @@ fun LogItemRow(log: LogEntry) {
     }
 
     val badgeResId = when (log.tag) {
-        "GARLIC", "CRYPT", "KEYRING", "KEYGEN" -> com.example.R.drawable.img_security_gold_1782670586675
-        "TUNNEL", "NETDB", "ROUTER" -> com.example.R.drawable.img_security_silver_1782670571201
-        else -> com.example.R.drawable.img_security_bronze_1782670550813
+        "GARLIC", "CRYPT", "KEYRING", "KEYGEN" -> no.knoksen.i2pbrowser.R.drawable.img_security_gold_1782670586675
+        "TUNNEL", "NETDB", "ROUTER" -> no.knoksen.i2pbrowser.R.drawable.img_security_silver_1782670571201
+        else -> no.knoksen.i2pbrowser.R.drawable.img_security_bronze_1782670550813
     }
 
     val securityLevelLabel = when (log.tag) {
@@ -1182,6 +1187,11 @@ fun BrowserScreen(
                     )
                 }
             } else {
+                val securityHeadline =
+                    if (routerState.isRealI2p) "REAL I2P ROUTING ACTIVE" else "SIMULATED I2P PREVIEW MODE"
+                val securitySubtext =
+                    if (routerState.isRealI2p) "Connected through local SAM bridge / I2P router."
+                    else "No real I2P router detected. This screen renders local simulated content, not a WebView/proxy browser."
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1196,19 +1206,25 @@ fun BrowserScreen(
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        Icons.Default.Lock,
+                                        if (routerState.isRealI2p) Icons.Default.Lock else Icons.Default.Visibility,
                                         contentDescription = null,
-                                        tint = CyberGreen,
+                                        tint = if (routerState.isRealI2p) CyberGreen else CyberOrange,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        "END-TO-END GARLIC TUNNEL SECURED",
+                                        securityHeadline,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = CyberGreen,
+                                        color = if (routerState.isRealI2p) CyberGreen else CyberOrange,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    securitySubtext,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary
+                                )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
                                     tabState.pageTitle,
@@ -2398,7 +2414,7 @@ fun DarkBERTPortal(modifier: Modifier = Modifier) {
                     scope.launch {
                         isAnalyzing = true
                         analysisResult = ""
-                        analysisResult = com.example.data.queryDarkBERT(queryInput)
+                        analysisResult = no.knoksen.i2pbrowser.data.queryDarkBERT(queryInput)
                         isAnalyzing = false
                     }
                 }
@@ -2590,7 +2606,7 @@ fun GarlicChatTab(
                     letterSpacing = 0.5.sp
                 )
                 Text(
-                    "Signal Protocol • OTR over OAuth2 • Garlic Routing",
+                    "Demo messenger • Local Base64 payloads • Real crypto backend required",
                     style = MaterialTheme.typography.labelSmall,
                     color = TextSecondary
                 )

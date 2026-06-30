@@ -1,4 +1,4 @@
-package com.example.data
+package no.knoksen.i2pbrowser.data
 
 import kotlinx.coroutines.flow.Flow
 import java.security.KeyPairGenerator
@@ -60,12 +60,11 @@ class I2PRepository(
     }
 
     suspend fun sendMessage(sender: String, recipient: String, body: String) {
-        // Log garlic encryption step
-        addLog("CRYPT", "Encrypting garlic clove payload with ElGamal/AES-256 for $recipient", "INFO")
-        addLog("ROUTING", "Encapsulating message in Garlic Packet payload...", "ROUTING")
-        addLog("TUNNEL", "Tunnel built: Outbound tunnel (Gate -> Proxy -> Endpoint)", "SUCCESS")
+        addLog("CRYPT", "Demo messenger payload encoded locally for $recipient. Not audited cryptography.", "WARN")
+        addLog("ROUTING", "Simulating Garlic Packet wrapping for UI preview.", "ROUTING")
+        addLog("TUNNEL", "Simulated outbound tunnel event recorded.", "INFO")
 
-        // Encrypt body placeholder representation (since real network is local, we encode securely)
+        // Base64 is storage/demo encoding, not encryption.
         val dummyCipher = Base64.encodeToString(body.toByteArray(), Base64.NO_WRAP)
         
         val secureMsg = SecureMessage(
@@ -77,7 +76,7 @@ class I2PRepository(
             decryptedBody = body
         )
         secureMessageDao.insertMessage(secureMsg)
-        addLog("TUNNEL", "Message dispatched to I2P network destination $recipient", "SUCCESS")
+        addLog("TUNNEL", "Demo message stored locally for destination $recipient.", "INFO")
 
         // Trigger an automatic response simulation on selected known endpoints to make communication active and beautiful
         if (recipient.endsWith(".i2p")) {
@@ -88,14 +87,14 @@ class I2PRepository(
     private suspend fun simulateAutoResponse(fromContact: String, toSelf: String) {
         val responseText = when {
             fromContact.contains("anon.chat") -> "Welcome to the anonymous relay chat room! Ensure your garlic routing tunnels maintain at least 3 hops for solid anonymity."
-            fromContact.contains("secure.mail") -> "Hello comrade. Your encrypted mailbox is active. Keep your private key backed up securely."
-            fromContact.contains("wiki.leaks") -> "Thank you for contacting the whistleblower endpoint. Share only encrypted files or logs."
+            fromContact.contains("secure.mail") -> "Hello. Demo mailbox preview is active. Real encrypted mail is not implemented yet."
+            fromContact.contains("wiki.leaks") -> "Demo endpoint received your preview payload. Use a real crypto backend before sharing sensitive files."
             else -> "Message acknowledged by cryptographic endpoint. Connection status: Active."
         }
         
         // Background delay simulator
-        addLog("GARLIC", "Received incoming Garlic Message from leaseSet of $fromContact", "ROUTING")
-        addLog("CRYPT", "Decrypting onion layered payload with ElGamal private key...", "SUCCESS")
+        addLog("GARLIC", "Simulated incoming Garlic Message from $fromContact", "ROUTING")
+        addLog("CRYPT", "Decoded demo Base64 payload locally. No ElGamal decryption was performed.", "WARN")
 
         val incomingMsg = SecureMessage(
             senderAddress = fromContact,
@@ -109,7 +108,7 @@ class I2PRepository(
     }
 
     suspend fun createIdentity(name: String): Identity {
-        addLog("KEYGEN", "Initializing KeyPairGenerator for ElGamal/SessionTag encryption...", "INFO")
+        addLog("KEYGEN", "Initializing demo RSA keypair for local identity preview.", "INFO")
         val keys = try {
             val keyGen = KeyPairGenerator.getInstance("RSA")
             keyGen.initialize(1024) // fast for mock/simulation keys
@@ -166,9 +165,9 @@ class I2PRepository(
     }
 
     suspend fun verifyTrustedKey(key: TrustedKey) {
-        addLog("CRYPT", "Initiating cryptographic handshake with ${key.alias}...", "INFO")
-        addLog("CRYPT", "Sending challenge packet encrypted with recipient public key...", "ROUTING")
-        addLog("CRYPT", "Received and decrypted signed challenge response. Verification successful!", "SUCCESS")
+        addLog("CRYPT", "Simulating key verification for ${key.alias}.", "INFO")
+        addLog("CRYPT", "Demo challenge packet generated locally.", "ROUTING")
+        addLog("CRYPT", "Demo verification complete. Not proof of real peer ownership.", "WARN")
         trustedKeyDao.insertTrustedKey(key.copy(isVerified = true, sessionTagCount = 100))
         addLog("KEYRING", "Identity verification complete for: ${key.alias}. Status: TRUSTED.", "SUCCESS")
     }

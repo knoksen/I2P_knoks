@@ -1,4 +1,4 @@
-package com.example
+package no.knoksen.i2pbrowser
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -28,8 +28,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import kotlinx.coroutines.launch
-import com.example.ui.*
-import com.example.ui.theme.*
+import no.knoksen.i2pbrowser.ui.*
+import no.knoksen.i2pbrowser.ui.theme.*
 
 enum class AppTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     ROUTER("Router", Icons.Default.Dns),
@@ -120,7 +120,11 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         Card(
                                             colors = CardDefaults.cardColors(
-                                                containerColor = if (routerState.isConnected) CyberGreen.copy(alpha = 0.15f) else CyberRed.copy(alpha = 0.15f)
+                                                containerColor = when {
+                                                    routerState.isRealI2p -> CyberGreen.copy(alpha = 0.15f)
+                                                    routerState.isConnected -> CyberOrange.copy(alpha = 0.15f)
+                                                    else -> CyberRed.copy(alpha = 0.15f)
+                                                }
                                             ),
                                             shape = MaterialTheme.shapes.small
                                         ) {
@@ -132,15 +136,15 @@ class MainActivity : ComponentActivity() {
                                                     modifier = Modifier
                                                         .size(6.dp)
                                                         .background(
-                                                            if (routerState.isConnected) CyberGreen else CyberRed,
+                                                            if (routerState.isRealI2p) CyberGreen else if (routerState.isConnected) CyberOrange else CyberRed,
                                                             shape = MaterialTheme.shapes.small
                                                         )
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
-                                                    if (routerState.isConnected) "ACTIVE" else "OFFLINE",
+                                                    if (routerState.isRealI2p) "REAL_I2P" else if (routerState.isConnected) "SIMULATION" else "OFFLINE",
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = if (routerState.isConnected) CyberGreen else CyberRed,
+                                                    color = if (routerState.isRealI2p) CyberGreen else if (routerState.isConnected) CyberOrange else CyberRed,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                             }
@@ -467,8 +471,9 @@ fun NodeHistoryItem(node: AccessedNode) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                val statusColor = if (node.connectionStatus == "SECURE_TUNNEL") CyberGreen else CyberOrange
-                val statusText = if (node.connectionStatus == "SECURE_TUNNEL") "GARLIC SECURED" else "UNENCRYPTED LOCAL"
+                val isRealI2p = node.connectionStatus == "REAL_I2P"
+                val statusColor = if (isRealI2p) CyberGreen else CyberOrange
+                val statusText = if (isRealI2p) "REAL I2P" else "SIMULATED PREVIEW"
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
@@ -486,7 +491,7 @@ fun NodeHistoryItem(node: AccessedNode) {
                 
                 // Quick lock/unlocked icon indicator
                 Icon(
-                    imageVector = if (node.connectionStatus == "SECURE_TUNNEL") Icons.Default.Lock else Icons.Default.LockOpen,
+                    imageVector = if (isRealI2p) Icons.Default.Lock else Icons.Default.Visibility,
                     contentDescription = "Encryption Type",
                     tint = statusColor.copy(alpha = 0.7f),
                     modifier = Modifier.size(12.dp)

@@ -1,4 +1,4 @@
-package com.example.data
+package no.knoksen.i2pbrowser.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
@@ -28,7 +28,7 @@ data class SecureMessage(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val senderAddress: String,
     val recipientAddress: String,
-    val encryptedPayload: String, // Base64 garlic packet
+    val encryptedPayload: String, // Demo Base64 payload, not production encryption
     val timestamp: Long = System.currentTimeMillis(),
     val isIncoming: Boolean,
     val isDecrypted: Boolean = false,

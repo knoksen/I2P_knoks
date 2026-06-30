@@ -1,4 +1,4 @@
-package com.example
+package no.knoksen.i2pbrowser
 
 import org.junit.Assert.*
 import org.junit.Test
