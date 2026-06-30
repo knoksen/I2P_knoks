@@ -4,12 +4,15 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import no.knoksen.i2pbrowser.AppExperienceMode
+import no.knoksen.i2pbrowser.BuildConfig
 import no.knoksen.i2pbrowser.data.*
 import no.knoksen.i2pbrowser.i2p.I2pDiagnosticsClient
 import no.knoksen.i2pbrowser.i2p.I2pDiagnosticsResult
 import no.knoksen.i2pbrowser.i2p.I2pEndpointConfig
+import no.knoksen.i2pbrowser.i2p.I2pEndpointValidationResult
 import no.knoksen.i2pbrowser.i2p.I2pFetchMode
 import no.knoksen.i2pbrowser.i2p.I2pHttpClient
+import no.knoksen.i2pbrowser.i2p.RealAlphaStatus
 import no.knoksen.i2pbrowser.i2p.SamBridgeClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -184,8 +187,41 @@ class I2PViewModel @JvmOverloads constructor(
     private val _diagnosticsResult = MutableStateFlow<I2pDiagnosticsResult?>(null)
     val diagnosticsResult: StateFlow<I2pDiagnosticsResult?> = _diagnosticsResult.asStateFlow()
 
+    private val _lastDiagnosticsAtMillis = MutableStateFlow<Long?>(null)
+    val lastDiagnosticsAtMillis: StateFlow<Long?> = _lastDiagnosticsAtMillis.asStateFlow()
+
     private val _isRunningDiagnostics = MutableStateFlow(false)
     val isRunningDiagnostics: StateFlow<Boolean> = _isRunningDiagnostics.asStateFlow()
+
+    private val _endpointValidationResult = MutableStateFlow(I2pEndpointValidationResult(emptyList()))
+    val endpointValidationResult: StateFlow<I2pEndpointValidationResult> = _endpointValidationResult.asStateFlow()
+
+    val realAlphaStatus: StateFlow<RealAlphaStatus> = combine(
+        endpointConfig,
+        diagnosticsResult,
+        lastDiagnosticsAtMillis,
+        appExperienceMode
+    ) { endpoint, diagnostics, lastDiagnosticsAt, appMode ->
+        RealAlphaStatus(
+            endpoint = endpoint,
+            diagnostics = diagnostics,
+            lastDiagnosticsAtMillis = lastDiagnosticsAt,
+            appMode = appMode,
+            versionName = BuildConfig.VERSION_NAME,
+            versionCode = BuildConfig.VERSION_CODE
+        )
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        RealAlphaStatus(
+            endpoint = I2pEndpointConfig.LOCAL_ANDROID_ROUTER,
+            diagnostics = null,
+            lastDiagnosticsAtMillis = null,
+            appMode = AppExperienceMode.RELEASE_REAL,
+            versionName = BuildConfig.VERSION_NAME,
+            versionCode = BuildConfig.VERSION_CODE
+        )
+    )
 
     private val _activeIdentity = MutableStateFlow<Identity?>(null)
     val activeIdentity: StateFlow<Identity?> = _activeIdentity.asStateFlow()
@@ -247,7 +283,15 @@ class I2PViewModel @JvmOverloads constructor(
         }
     }
 
-    fun updateEndpointConfig(config: I2pEndpointConfig) {
+    fun updateEndpointConfig(config: I2pEndpointConfig): Boolean {
+        val validation = config.validate()
+        _endpointValidationResult.value = validation
+        if (!validation.isValid) {
+            viewModelScope.launch {
+                repository.addLog("SETUP", "Rejected invalid I2P endpoint config: ${validation.errors.joinToString("; ")}", "WARN")
+            }
+            return false
+        }
         _routerState.update {
             it.copy(
                 samHost = config.host,
@@ -259,6 +303,7 @@ class I2PViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             repository.saveEndpointConfig(config)
         }
+        return true
     }
 
     fun updateProxySettings(
@@ -529,6 +574,7 @@ class I2PViewModel @JvmOverloads constructor(
         return try {
             val result = diagnosticsClient.runDiagnostics(endpointConfig.value)
             _diagnosticsResult.value = result
+            _lastDiagnosticsAtMillis.value = System.currentTimeMillis()
             repository.addLog(
                 "DIAGNOSTIC",
                 "I2P local services: SAM=${result.samReachable}, HTTP=${result.httpProxyReachable}, Console=${result.routerConsoleReachable}. ${result.summary}",
@@ -790,6 +836,10 @@ class I2PViewModel @JvmOverloads constructor(
             }
             repository.addLog("PROXY", "Page loaded: $pageTitle ($cleanUrl) $routeMode in ${routingDelay}ms.", "INFO")
         }
+    }
+
+    fun retryCurrentBrowserRequest() {
+        navigateBrowser(_browserTab.value.url)
     }
 
     private fun simulatedPageTitle(cleanUrl: String): String {

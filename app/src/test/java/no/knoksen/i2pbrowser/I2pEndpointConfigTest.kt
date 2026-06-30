@@ -7,6 +7,8 @@ import no.knoksen.i2pbrowser.i2p.I2pHttpClient
 import no.knoksen.i2pbrowser.i2p.SamBridgeClient
 import no.knoksen.i2pbrowser.i2p.SamBridgeResult
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class I2pEndpointConfigTest {
@@ -45,6 +47,34 @@ class I2pEndpointConfigTest {
 
         assertEquals("10.0.2.2", client.host)
         assertEquals(17656, client.port)
+    }
+
+    @Test
+    fun `endpoint validation accepts localhost ipv4 lan and dns hosts`() {
+        val validHosts = listOf("127.0.0.1", "localhost", "192.168.1.44", "router.lan", "i2p-router.local")
+
+        validHosts.forEach { host ->
+            val result = I2pEndpointConfig.manual(host, 7656, 4444, 7657).validate()
+            assertTrue("Expected $host to be valid", result.isValid)
+        }
+    }
+
+    @Test
+    fun `endpoint validation rejects blank spaced malformed hosts and invalid ports`() {
+        val invalidConfigs = listOf(
+            I2pEndpointConfig.manual("", 7656, 4444, 7657),
+            I2pEndpointConfig.manual("router host", 7656, 4444, 7657),
+            I2pEndpointConfig.manual("256.1.1.1", 7656, 4444, 7657),
+            I2pEndpointConfig.manual("router_lan", 7656, 4444, 7657),
+            I2pEndpointConfig.manual("127.0.0.1", 0, 4444, 7657),
+            I2pEndpointConfig.manual("127.0.0.1", 7656, 70000, 7657),
+            I2pEndpointConfig.manual("127.0.0.1", 7656, 4444, -1)
+        )
+
+        invalidConfigs.forEach { config ->
+            val result = config.validate()
+            assertFalse("Expected $config to be invalid", result.isValid)
+        }
     }
 }
 

@@ -50,6 +50,8 @@ import no.knoksen.i2pbrowser.AppExperienceMode
 import no.knoksen.i2pbrowser.i2p.I2pDiagnosticsSummary
 import no.knoksen.i2pbrowser.i2p.I2pEndpointConfig
 import no.knoksen.i2pbrowser.i2p.I2pFetchMode
+import no.knoksen.i2pbrowser.i2p.RealAlphaReadiness
+import no.knoksen.i2pbrowser.i2p.RealAlphaStatus
 
 @Composable
 fun RouterScreen(
@@ -60,6 +62,8 @@ fun RouterScreen(
     val logs by viewModel.logs.collectAsState()
     val endpointConfig by viewModel.endpointConfig.collectAsState()
     val appMode by viewModel.appExperienceMode.collectAsState()
+    val endpointValidation by viewModel.endpointValidationResult.collectAsState()
+    val realAlphaStatus by viewModel.realAlphaStatus.collectAsState()
     val scope = rememberCoroutineScope()
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -355,8 +359,17 @@ fun RouterScreen(
         item {
             I2pEndpointSetupCard(
                 endpointConfig = endpointConfig,
+                validationError = endpointValidation.errorText,
                 onSave = { viewModel.updateEndpointConfig(it) }
             )
+        }
+
+        item {
+            RealAlphaStatusCard(status = realAlphaStatus)
+        }
+
+        item {
+            SecurityBoundariesCard()
         }
 
         item {
@@ -572,6 +585,7 @@ fun I2pDiagnosticsPanel(viewModel: I2PViewModel) {
     val diagnostics by viewModel.diagnosticsResult.collectAsState()
     val isRunning by viewModel.isRunningDiagnostics.collectAsState()
     val endpointConfig by viewModel.endpointConfig.collectAsState()
+    val lastDiagnosticsAt by viewModel.lastDiagnosticsAtMillis.collectAsState()
     val summary = diagnostics?.summary ?: I2pDiagnosticsSummary.UNKNOWN_ERROR
     val summaryColor = when (summary) {
         I2pDiagnosticsSummary.READY -> CyberGreen
@@ -634,6 +648,12 @@ fun I2pDiagnosticsPanel(viewModel: I2PViewModel) {
                 fontWeight = FontWeight.Bold,
                 fontSize = 11.sp
             )
+            Text(
+                "Last diagnostics: ${formatTimestamp(lastDiagnosticsAt)}",
+                color = TextSecondary,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace
+            )
 
             DiagnosticsServiceRow("SAM Bridge", "${endpointConfig.host}:${endpointConfig.samPort}", diagnostics?.samReachable)
             DiagnosticsServiceRow("HTTP Proxy", "${endpointConfig.host}:${endpointConfig.httpProxyPort}", diagnostics?.httpProxyReachable)
@@ -670,12 +690,14 @@ fun I2pDiagnosticsPanel(viewModel: I2PViewModel) {
 @Composable
 fun I2pEndpointSetupCard(
     endpointConfig: I2pEndpointConfig,
-    onSave: (I2pEndpointConfig) -> Unit
+    validationError: String,
+    onSave: (I2pEndpointConfig) -> Boolean
 ) {
     var hostInput by remember { mutableStateOf(endpointConfig.host) }
     var samPortInput by remember { mutableStateOf(endpointConfig.samPort.toString()) }
     var httpPortInput by remember { mutableStateOf(endpointConfig.httpProxyPort.toString()) }
     var consolePortInput by remember { mutableStateOf(endpointConfig.routerConsolePort.toString()) }
+    var showManual by remember { mutableStateOf(false) }
 
     LaunchedEffect(endpointConfig) {
         hostInput = endpointConfig.host
@@ -700,67 +722,116 @@ fun I2pEndpointSetupCard(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                "Choose where your real I2P or i2pd router is running. These values drive SAM, HTTP proxy fetches, and diagnostics.",
+                "Active endpoint: ${endpointConfig.label} ${endpointConfig.host}:${endpointConfig.samPort} / ${endpointConfig.httpProxyPort} / ${endpointConfig.routerConsolePort}",
                 style = MaterialTheme.typography.labelSmall,
-                color = TextSecondary
+                color = TextPrimary,
+                fontFamily = FontFamily.Monospace
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(
-                    onClick = { onSave(I2pEndpointConfig.LOCAL_ANDROID_ROUTER) },
+                    onClick = {
+                        showManual = false
+                        onSave(I2pEndpointConfig.LOCAL_ANDROID_ROUTER)
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = CyberGreen.copy(alpha = 0.18f), contentColor = CyberGreen),
                     border = BorderStroke(1.dp, CyberGreen),
                     shape = RoundedCornerShape(4.dp),
                     modifier = Modifier.weight(1f).testTag("endpoint_local_button")
                 ) {
-                    Text("LOCAL", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("LOCAL ANDROID", fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
                 Button(
                     onClick = {
-                        onSave(I2pEndpointConfig.desktopLanRouter(hostInput.ifBlank { "192.168.1.10" }))
+                        showManual = true
+                        hostInput = if (endpointConfig.host == I2pEndpointConfig.LOCAL_ANDROID_ROUTER.host) "" else endpointConfig.host
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = CyberBlue.copy(alpha = 0.18f), contentColor = CyberBlue),
                     border = BorderStroke(1.dp, CyberBlue),
                     shape = RoundedCornerShape(4.dp),
                     modifier = Modifier.weight(1f).testTag("endpoint_lan_button")
                 ) {
-                    Text("LAN", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("DESKTOP/LAN", fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            OutlinedTextField(
-                value = hostInput,
-                onValueChange = { hostInput = it },
-                label = { Text("Router host") },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                modifier = Modifier.fillMaxWidth().testTag("endpoint_host_input"),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
-                    focusedBorderColor = CyberBlue,
-                    unfocusedBorderColor = CyberBorder
-                )
-            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                EndpointPortField("SAM", samPortInput, { samPortInput = it }, Modifier.weight(1f))
-                EndpointPortField("HTTP", httpPortInput, { httpPortInput = it }, Modifier.weight(1f))
-                EndpointPortField("Console", consolePortInput, { consolePortInput = it }, Modifier.weight(1f))
+                OutlinedButton(
+                    onClick = {
+                        showManual = false
+                        onSave(I2pEndpointConfig.LOCAL_ANDROID_ROUTER)
+                    },
+                    border = BorderStroke(1.dp, CyberOrange),
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier.weight(1f).testTag("endpoint_reset_button")
+                ) {
+                    Text("RESET TO DEFAULT", fontSize = 9.sp, color = CyberOrange, fontWeight = FontWeight.Bold)
+                }
+                OutlinedButton(
+                    onClick = { showManual = true },
+                    border = BorderStroke(1.dp, CyberBorder),
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier.weight(1f).testTag("endpoint_manual_button")
+                ) {
+                    Text("MANUAL ADVANCED", fontSize = 9.sp, color = TextPrimary, fontWeight = FontWeight.Bold)
+                }
             }
-            Button(
-                onClick = {
-                    onSave(
-                        I2pEndpointConfig.manual(
-                            host = hostInput.ifBlank { "127.0.0.1" },
-                            samPort = samPortInput.toIntOrNull() ?: 7656,
-                            httpProxyPort = httpPortInput.toIntOrNull() ?: 4444,
-                            routerConsolePort = consolePortInput.toIntOrNull() ?: 7657
-                        )
+
+            if (showManual) {
+                Text(
+                    "Desktop/LAN requires the actual router host. No placeholder IP is assumed.",
+                    color = TextSecondary,
+                    fontSize = 10.sp
+                )
+                OutlinedTextField(
+                    value = hostInput,
+                    onValueChange = { hostInput = it },
+                    label = { Text("Router host") },
+                    singleLine = true,
+                    isError = validationError.isNotBlank(),
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    modifier = Modifier.fillMaxWidth().testTag("endpoint_host_input"),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedBorderColor = CyberBlue,
+                        unfocusedBorderColor = CyberBorder,
+                        errorBorderColor = CyberOrange
                     )
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = CyberBlue, contentColor = CyberBlack),
-                shape = RoundedCornerShape(4.dp),
-                modifier = Modifier.fillMaxWidth().testTag("endpoint_manual_save_button")
-            ) {
-                Text("SAVE MANUAL ENDPOINT", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    EndpointPortField("SAM", samPortInput, { samPortInput = it }, Modifier.weight(1f), validationError.isNotBlank())
+                    EndpointPortField("HTTP", httpPortInput, { httpPortInput = it }, Modifier.weight(1f), validationError.isNotBlank())
+                    EndpointPortField("Console", consolePortInput, { consolePortInput = it }, Modifier.weight(1f), validationError.isNotBlank())
+                }
+                validationError.takeIf { it.isNotBlank() }?.let { error ->
+                    Text(
+                        error,
+                        color = CyberOrange,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.testTag("endpoint_validation_error")
+                    )
+                }
+                Button(
+                    onClick = {
+                        val samPort = samPortInput.toIntOrNull() ?: -1
+                        val httpPort = httpPortInput.toIntOrNull() ?: -1
+                        val consolePort = consolePortInput.toIntOrNull() ?: -1
+                        val saved = onSave(
+                            I2pEndpointConfig.manual(
+                                host = hostInput.trim(),
+                                samPort = samPort,
+                                httpProxyPort = httpPort,
+                                routerConsolePort = consolePort
+                            )
+                        )
+                        if (saved) showManual = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CyberBlue, contentColor = CyberBlack),
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("endpoint_manual_save_button")
+                ) {
+                    Text("SAVE MANUAL ENDPOINT", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -771,22 +842,93 @@ private fun EndpointPortField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
-    modifier: Modifier
+    modifier: Modifier,
+    isError: Boolean
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label, fontSize = 10.sp) },
         singleLine = true,
+        isError = isError,
         textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
         modifier = modifier,
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = TextPrimary,
             unfocusedTextColor = TextPrimary,
             focusedBorderColor = CyberBlue,
-            unfocusedBorderColor = CyberBorder
+            unfocusedBorderColor = CyberBorder,
+            errorBorderColor = CyberOrange
         )
     )
+}
+
+@Composable
+fun RealAlphaStatusCard(status: RealAlphaStatus) {
+    val statusColor = when (status.state) {
+        RealAlphaReadiness.READY -> CyberGreen
+        RealAlphaReadiness.PARTIAL -> CyberOrange
+        RealAlphaReadiness.OFFLINE -> CyberRed
+        RealAlphaReadiness.UNCHECKED -> TextSecondary
+    }
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.dp, statusColor.copy(alpha = 0.7f)),
+        modifier = Modifier.fillMaxWidth().testTag("real_alpha_status_card")
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Verified, contentDescription = null, tint = statusColor, modifier = Modifier.size(16.dp))
+                Text("REAL ALPHA STATUS", color = statusColor, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            }
+            Text(status.summaryText, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            DiagnosticsServiceRow("SAM Bridge", "${status.endpoint.host}:${status.endpoint.samPort}", status.diagnostics?.samReachable)
+            DiagnosticsServiceRow("HTTP Proxy", "${status.endpoint.host}:${status.endpoint.httpProxyPort}", status.diagnostics?.httpProxyReachable)
+            DiagnosticsServiceRow("Router Console", "${status.endpoint.host}:${status.endpoint.routerConsolePort}", status.diagnostics?.routerConsoleReachable)
+            Text("Last diagnostics: ${formatTimestamp(status.lastDiagnosticsAtMillis)}", color = TextSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Text("Mode: ${status.appMode.name}  Version: ${status.versionName} (${status.versionCode})", color = TextSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        }
+    }
+}
+
+@Composable
+fun SecurityBoundariesCard() {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.dp, CyberOrange.copy(alpha = 0.7f)),
+        modifier = Modifier.fillMaxWidth().testTag("security_boundaries_card")
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.PrivacyTip, contentDescription = null, tint = CyberOrange, modifier = Modifier.size(16.dp))
+                Text("SECURITY BOUNDARIES", color = CyberOrange, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            }
+            BoundaryLine("No OS-level VPN tunneling is active in this release.")
+            BoundaryLine("No audited encrypted chat transport is active in this release.")
+            BoundaryLine("No full browser isolation or WebView execution is provided.")
+            BoundaryLine("Real I2P traffic requires a running I2P or i2pd router.")
+            BoundaryLine("RELEASE_REAL means measured diagnostics/proxy/SAM behavior, not anonymity by itself.")
+        }
+    }
+}
+
+@Composable
+private fun BoundaryLine(text: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top) {
+        Text("-", color = CyberOrange, fontSize = 11.sp)
+        Text(text, color = TextSecondary, fontSize = 10.sp, lineHeight = 14.sp)
+    }
+}
+
+private fun formatTimestamp(timestampMillis: Long?): String {
+    if (timestampMillis == null) return "not run yet"
+    return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(timestampMillis))
 }
 
 @Composable
@@ -945,6 +1087,8 @@ fun BrowserScreen(
     val bookmarks by viewModel.bookmarks.collectAsState()
     val routerState by viewModel.routerState.collectAsState()
     val endpointConfig by viewModel.endpointConfig.collectAsState()
+    val isRunningDiagnostics by viewModel.isRunningDiagnostics.collectAsState()
+    val clipboardManager = LocalClipboardManager.current
     
     var urlInput by remember { mutableStateOf(tabState.url) }
     var showBookmarkDialog by remember { mutableStateOf(false) }
@@ -1091,7 +1235,7 @@ fun BrowserScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            if (routerState.isConnected) "Anonymous Tunnel Connection Active" else "Warning: Router is Offline (Browsing is simulated local cached assets)",
+                            if (routerState.isRealI2p) "Real SAM session detected; page fetch still depends on HTTP proxy" else "Router session not verified; preview content is local",
                             style = MaterialTheme.typography.labelSmall,
                             color = if (routerState.isConnected) CyberGreen else CyberOrange,
                             maxLines = 1,
@@ -1194,7 +1338,7 @@ fun BrowserScreen(
 
                     // Simplified connection menu
                     Text(
-                        "SAFE DARKNET ADDRESSES (ONE-CLICK HANDSHAKE)",
+                        "LOCAL TEST TARGETS",
                         color = CyberBlue,
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp,
@@ -1203,12 +1347,8 @@ fun BrowserScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     val safeSites = listOf(
-                        "127.0.0.1:7657" to "Router Console",
-                        "i2p-project.i2p" to "I2P Home",
-                        "anon.chat.i2p" to "AnonIRC",
-                        "wiki.leaks.i2p" to "WikiLeaks",
-                        "secure.mail.i2p" to "GarlicMail",
-                        "darkbert.intel.i2p" to "DarkBERT AI"
+                        "${endpointConfig.host}:${endpointConfig.routerConsolePort}" to "Router Console",
+                        "example.i2p" to "Example .i2p"
                     )
 
                     Row(
@@ -1259,9 +1399,9 @@ fun BrowserScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Manual Connection Gate with encryption hop level picker
+                    // Manual inspection target entry
                     Text(
-                        "MANUAL GATEWAY ENTRY",
+                        "MANUAL INSPECTION TARGET",
                         color = CyberOrange,
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp,
@@ -1270,7 +1410,6 @@ fun BrowserScreen(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     var manualAddressInput by remember { mutableStateOf("") }
-                    var garlicHopLevel by remember { mutableStateOf("Double Hop") }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1280,7 +1419,7 @@ fun BrowserScreen(
                         OutlinedTextField(
                             value = manualAddressInput,
                             onValueChange = { manualAddressInput = it },
-                            placeholder = { Text("any-address.i2p / .onion", color = TextSecondary, fontSize = 11.sp) },
+                            placeholder = { Text("host.i2p or router console URL", color = TextSecondary, fontSize = 11.sp) },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
@@ -1315,40 +1454,7 @@ fun BrowserScreen(
                                 .height(48.dp)
                                 .testTag("manual_gateway_connect_button")
                         ) {
-                            Text("GATE CONNECT", fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Hop level picker chips
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf("Direct proxy", "Double Hop", "Garlic-Clad").forEach { level ->
-                            val isSelected = garlicHopLevel == level
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        if (isSelected) CyberOrange.copy(alpha = 0.15f) else Color.Transparent,
-                                        RoundedCornerShape(4.dp)
-                                    )
-                                    .border(
-                                        1.dp,
-                                        if (isSelected) CyberOrange else CyberBorder.copy(alpha = 0.5f),
-                                        RoundedCornerShape(4.dp)
-                                    )
-                                    .clickable { garlicHopLevel = level }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = level,
-                                    color = if (isSelected) CyberOrange else TextSecondary,
-                                    fontSize = 10.sp,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            }
+                            Text("INSPECT", fontWeight = FontWeight.Bold, fontSize = 10.sp)
                         }
                     }
 
@@ -1358,7 +1464,7 @@ fun BrowserScreen(
 
                     // Adviced accessories
                     Text(
-                        "ADVICED SECURITY ACCESSORIES (ACTIVE LAYER PROTECTION)",
+                        "LAB PREVIEW CONTROLS",
                         color = CyberPurple,
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp,
@@ -1366,17 +1472,17 @@ fun BrowserScreen(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        "Configure active browser payloads to adapt to routing latency and secure sandboxing profiles.",
+                        "These switches affect local preview behavior only. They do not harden a real browser engine.",
                         color = TextSecondary,
                         fontSize = 10.sp
                     )
                     Spacer(modifier = Modifier.height(10.dp))
 
                     val accessoriesList = listOf(
-                        Triple("noscript", "NoScript Shield", "Disables Javascript to block browser exploit vectors (-300ms latency)"),
-                        Triple("https_everywhere", "HTTPS-Everywhere", "Enforces end-to-end transport-layer TLS encapsulation (+100ms latency)"),
-                        Triple("user_agent", "UA-Cloaking Spoofer", "Hides hardware fingerprint and client user-agent headers (+50ms latency)"),
-                        Triple("metadata_stripper", "Metadata Stripper", "Purges EXIF data and upload tracking metadata tags (+150ms latency)")
+                        Triple("noscript", "NoScript Preview", "Local preview toggle; no WebView JavaScript is executed here."),
+                        Triple("https_everywhere", "HTTPS Preference Preview", "Local preview label only; network TLS policy is not enforced by this control."),
+                        Triple("user_agent", "User-Agent Preview", "Local preview toggle; real request headers are not rewritten here."),
+                        Triple("metadata_stripper", "Metadata Preview", "Local preview toggle; uploads are not processed by this release.")
                     )
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1582,6 +1688,48 @@ fun BrowserScreen(
                                         maxLines = 3,
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
+                                }
+                                if (tabState.fetchMode == I2pFetchMode.PROXY_UNAVAILABLE || tabState.fetchMode == I2pFetchMode.HOST_LOOKUP_FAILED) {
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Button(
+                                            onClick = { viewModel.retryCurrentBrowserRequest() },
+                                            colors = ButtonDefaults.buttonColors(containerColor = CyberGreen, contentColor = CyberBlack),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.weight(1f).testTag("browser_retry_button")
+                                        ) {
+                                            Text("RETRY", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                        Button(
+                                            onClick = { viewModel.runI2pDiagnostics() },
+                                            enabled = !isRunningDiagnostics,
+                                            colors = ButtonDefaults.buttonColors(containerColor = CyberBlue, contentColor = CyberBlack),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.weight(1f).testTag("browser_run_diagnostics_button")
+                                        ) {
+                                            Text(if (isRunningDiagnostics) "CHECKING" else "DIAGNOSTICS", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                        OutlinedButton(
+                                            onClick = {
+                                                val detail = buildString {
+                                                    appendLine("URL: ${tabState.url}")
+                                                    appendLine("Mode: ${tabState.fetchMode.name}")
+                                                    appendLine("HTTP status: ${tabState.fetchStatusCode ?: "none"}")
+                                                    appendLine("Endpoint: ${endpointConfig.host}:${endpointConfig.httpProxyPort}")
+                                                    appendLine("Error: ${tabState.fetchError ?: "none"}")
+                                                }
+                                                clipboardManager.setText(AnnotatedString(detail))
+                                            },
+                                            border = BorderStroke(1.dp, CyberOrange),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.weight(1f).testTag("browser_copy_error_button")
+                                        ) {
+                                            Text("COPY ERROR", fontSize = 10.sp, color = CyberOrange, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2035,7 +2183,7 @@ fun RenderWebpageContents(url: String, viewModel: I2PViewModel, onNavigate: (Str
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextPrimary
                 )
-                Text("The connection remains end-to-end encrypted under garlic-clad leaseSets.", style = MaterialTheme.typography.bodySmall, color = CyberGreen)
+                Text("SAM session state is real only when a local router handshake has succeeded.", style = MaterialTheme.typography.bodySmall, color = CyberGreen)
             }
         }
     }

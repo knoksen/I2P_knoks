@@ -182,7 +182,7 @@ class I2PRepository(
         addLog("KEYRING", "Identity verification complete for: ${key.alias}. Status: TRUSTED.", "SUCCESS")
     }
 
-    // Seed initial database state with safe default darkweb wiki, secure chats, and cryptographic profiles
+    // Seed initial database state for lab preview bookmarks, contacts, and identity UI.
     suspend fun seedDefaultsIfNeeded() {
         val defaultBookmarks = listOf(
             Bookmark(title = "I2P Project Homepage", url = "http://i2p-project.i2p", iconName = "language", colorHex = "#00E676"),

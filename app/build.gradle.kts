@@ -17,8 +17,8 @@ android {
     applicationId = "no.knoksen.i2pbrowser"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 4
+    versionName = "0.3.1-dev"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
