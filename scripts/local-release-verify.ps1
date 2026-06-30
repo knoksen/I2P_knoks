@@ -61,6 +61,22 @@ function Find-Java21 {
     return $null
 }
 
+function Invoke-Checked {
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments = @(),
+        [bool]$CheckLastExitCode = $true
+    )
+
+    & $FilePath @Arguments
+    if (-not $?) {
+        throw "Command failed: $FilePath $($Arguments -join ' ')"
+    }
+    if ($CheckLastExitCode -and $LASTEXITCODE -ne 0) {
+        throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($Arguments -join ' ')"
+    }
+}
+
 $java = Find-Java21
 if (-not $java) {
     throw @"
@@ -84,9 +100,9 @@ Write-Host "Detected JAVA_HOME: $env:JAVA_HOME" -ForegroundColor Cyan
 & "$env:JAVA_HOME\bin\javac.exe" -version 2>&1 | ForEach-Object { Write-Host $_ }
 
 Write-Host "Checking release-facing claims..." -ForegroundColor Cyan
-& "$PSScriptRoot\check-release-claims.ps1"
+Invoke-Checked "$PSScriptRoot\check-release-claims.ps1" -CheckLastExitCode $false
 
 Write-Host "Running Android release verification..." -ForegroundColor Cyan
-& "$PSScriptRoot\..\gradlew.bat" clean testDebugUnitTest assembleDebug
+Invoke-Checked "$PSScriptRoot\..\gradlew.bat" @("clean", "testDebugUnitTest", "assembleDebug")
 
 Write-Host "Local release verification passed." -ForegroundColor Green

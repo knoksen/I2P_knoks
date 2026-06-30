@@ -59,6 +59,14 @@ data class BrowserTab(
     val isLoading: Boolean = false,
     val fetchMode: I2pFetchMode = I2pFetchMode.SIMULATED_PREVIEW,
     val fetchStatusCode: Int? = null,
+    val fetchStatusMessage: String? = null,
+    val fetchFinalUrl: String? = null,
+    val fetchContentType: String? = null,
+    val fetchContentLength: Long? = null,
+    val fetchResponseHeaders: Map<String, String> = emptyMap(),
+    val fetchRedirectLocation: String? = null,
+    val fetchElapsedMs: Long? = null,
+    val fetchFetchedAtMillis: Long? = null,
     val fetchBodyPreview: String? = null,
     val fetchError: String? = "Initial local preview content."
 )
@@ -766,6 +774,14 @@ class I2PViewModel @JvmOverloads constructor(
                     url = cleanUrl,
                     fetchMode = I2pFetchMode.SIMULATED_PREVIEW,
                     fetchStatusCode = null,
+                    fetchStatusMessage = null,
+                    fetchFinalUrl = null,
+                    fetchContentType = null,
+                    fetchContentLength = null,
+                    fetchResponseHeaders = emptyMap(),
+                    fetchRedirectLocation = null,
+                    fetchElapsedMs = null,
+                    fetchFetchedAtMillis = null,
                     fetchBodyPreview = null,
                     fetchError = null
                 )
@@ -799,6 +815,16 @@ class I2PViewModel @JvmOverloads constructor(
                     "Real I2P HTTP proxy response for $cleanUrl: HTTP ${fetchResult.statusCode}",
                     "SUCCESS"
                 )
+                I2pFetchMode.REDIRECT -> repository.addLog(
+                    "PROXY",
+                    "I2P HTTP proxy returned redirect for $cleanUrl: ${fetchResult.redirectLocation ?: "no Location header"}",
+                    "INFO"
+                )
+                I2pFetchMode.HTTP_ERROR -> repository.addLog(
+                    "PROXY",
+                    "I2P HTTP proxy returned HTTP error for $cleanUrl: ${fetchResult.statusCode}",
+                    "WARN"
+                )
                 I2pFetchMode.PROXY_UNAVAILABLE -> repository.addLog(
                     "PROXY",
                     "Local I2P HTTP proxy unavailable at ${endpoint.host}:${endpoint.httpProxyPort} for $cleanUrl.",
@@ -809,13 +835,33 @@ class I2PViewModel @JvmOverloads constructor(
                     "I2P host lookup failed for $cleanUrl through local HTTP proxy.",
                     "WARN"
                 )
+                I2pFetchMode.TIMEOUT -> repository.addLog(
+                    "PROXY",
+                    "I2P HTTP proxy request timed out for $cleanUrl.",
+                    "WARN"
+                )
+                I2pFetchMode.UNSUPPORTED_CONTENT_TYPE -> repository.addLog(
+                    "PROXY",
+                    "I2P HTTP proxy response for $cleanUrl has unsupported preview content type: ${fetchResult.contentType ?: "unknown"}",
+                    "WARN"
+                )
+                I2pFetchMode.INVALID_URL -> repository.addLog(
+                    "PROXY",
+                    "Rejected invalid browser URL: $cleanUrl",
+                    "WARN"
+                )
+                I2pFetchMode.NON_I2P_URL -> repository.addLog(
+                    "PROXY",
+                    "Non-.i2p URL uses local preview renderer for $cleanUrl.",
+                    "INFO"
+                )
                 I2pFetchMode.SIMULATED_PREVIEW -> repository.addLog(
                     "PROXY",
                     "Using simulated preview renderer for $cleanUrl.",
                     "INFO"
                 )
             }
-            if (fetchResult.mode == I2pFetchMode.PROXY_UNAVAILABLE || fetchResult.mode == I2pFetchMode.HOST_LOOKUP_FAILED) {
+            if (fetchResult.mode == I2pFetchMode.PROXY_UNAVAILABLE || fetchResult.mode == I2pFetchMode.HOST_LOOKUP_FAILED || fetchResult.mode == I2pFetchMode.TIMEOUT) {
                 runI2pDiagnosticsNow()
             }
 
@@ -843,6 +889,14 @@ class I2PViewModel @JvmOverloads constructor(
                     isLoading = false,
                     fetchMode = fetchResult.mode,
                     fetchStatusCode = fetchResult.statusCode,
+                    fetchStatusMessage = fetchResult.statusMessage,
+                    fetchFinalUrl = fetchResult.finalUrl,
+                    fetchContentType = fetchResult.contentType,
+                    fetchContentLength = fetchResult.contentLength,
+                    fetchResponseHeaders = fetchResult.responseHeaders,
+                    fetchRedirectLocation = fetchResult.redirectLocation,
+                    fetchElapsedMs = fetchResult.elapsedMs,
+                    fetchFetchedAtMillis = fetchResult.fetchedAtMillis,
                     fetchBodyPreview = fetchResult.bodyPreview,
                     fetchError = fetchResult.error
                 )
@@ -857,8 +911,14 @@ class I2PViewModel @JvmOverloads constructor(
             }
             val routeMode = when (fetchResult.mode) {
                 I2pFetchMode.REAL_PROXY_OK -> "through local I2P HTTP proxy"
-                I2pFetchMode.PROXY_UNAVAILABLE -> "with simulated fallback because proxy was unavailable"
-                I2pFetchMode.HOST_LOOKUP_FAILED -> "with simulated fallback because lookup failed"
+                I2pFetchMode.REDIRECT -> "as an explicit redirect inspector result"
+                I2pFetchMode.HTTP_ERROR -> "as an HTTP error inspector result"
+                I2pFetchMode.PROXY_UNAVAILABLE -> "with proxy unavailable"
+                I2pFetchMode.HOST_LOOKUP_FAILED -> "with host lookup failure"
+                I2pFetchMode.TIMEOUT -> "with proxy request timeout"
+                I2pFetchMode.UNSUPPORTED_CONTENT_TYPE -> "with preview skipped for unsupported content"
+                I2pFetchMode.INVALID_URL -> "as invalid URL"
+                I2pFetchMode.NON_I2P_URL -> "as local non-I2P preview"
                 I2pFetchMode.SIMULATED_PREVIEW -> "as local simulated preview"
             }
             repository.addLog("PROXY", "Page loaded: $pageTitle ($cleanUrl) $routeMode in ${routingDelay}ms.", "INFO")
