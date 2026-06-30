@@ -40,10 +40,10 @@ class SocketPortProbe : PortProbe {
 }
 
 open class I2pDiagnosticsClient(
-    private val host: String = "127.0.0.1",
-    private val samPort: Int = 7656,
-    private val httpProxyPort: Int = 4444,
-    private val routerConsolePort: Int = 7657,
+    val host: String = "127.0.0.1",
+    val samPort: Int = 7656,
+    val httpProxyPort: Int = 4444,
+    val routerConsolePort: Int = 7657,
     private val timeoutMs: Int = 700,
     private val portProbe: PortProbe = SocketPortProbe()
 ) {
@@ -54,6 +54,18 @@ open class I2pDiagnosticsClient(
             val routerConsoleReachable = portProbe.isReachable(host, routerConsolePort, timeoutMs)
             fromPortStates(samReachable, httpProxyReachable, routerConsoleReachable)
         }
+    }
+
+    open suspend fun runDiagnostics(config: I2pEndpointConfig): I2pDiagnosticsResult {
+        val client = I2pDiagnosticsClient(
+            host = config.host,
+            samPort = config.samPort,
+            httpProxyPort = config.httpProxyPort,
+            routerConsolePort = config.routerConsolePort,
+            timeoutMs = timeoutMs,
+            portProbe = portProbe
+        )
+        return client.runDiagnostics()
     }
 
     companion object {
@@ -83,8 +95,8 @@ open class I2pDiagnosticsClient(
             return when (summary) {
                 I2pDiagnosticsSummary.READY -> "Local I2P services are reachable. Retry the .i2p request."
                 I2pDiagnosticsSummary.ROUTER_NOT_RUNNING -> "Start I2P or i2pd locally, then open the router console and retry."
-                I2pDiagnosticsSummary.SAM_DISABLED -> "Open router console and enable SAM bridge on 127.0.0.1:7656."
-                I2pDiagnosticsSummary.HTTP_PROXY_DISABLED -> "Enable the HTTP proxy / I2PTunnel client on 127.0.0.1:4444, then retry this request."
+                I2pDiagnosticsSummary.SAM_DISABLED -> "Open router console and enable SAM bridge on the configured SAM port."
+                I2pDiagnosticsSummary.HTTP_PROXY_DISABLED -> "Enable the HTTP proxy / I2PTunnel client on the configured HTTP proxy port, then retry this request."
                 I2pDiagnosticsSummary.PARTIAL_READY -> "Some local I2P services are reachable. Check SAM and HTTP proxy settings in router console."
                 I2pDiagnosticsSummary.UNKNOWN_ERROR -> "Check local firewall, router logs, and I2P/i2pd service status."
             }

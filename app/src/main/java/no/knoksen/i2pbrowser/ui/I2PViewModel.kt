@@ -3,9 +3,11 @@ package no.knoksen.i2pbrowser.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import no.knoksen.i2pbrowser.AppExperienceMode
 import no.knoksen.i2pbrowser.data.*
 import no.knoksen.i2pbrowser.i2p.I2pDiagnosticsClient
 import no.knoksen.i2pbrowser.i2p.I2pDiagnosticsResult
+import no.knoksen.i2pbrowser.i2p.I2pEndpointConfig
 import no.knoksen.i2pbrowser.i2p.I2pFetchMode
 import no.knoksen.i2pbrowser.i2p.I2pHttpClient
 import no.knoksen.i2pbrowser.i2p.SamBridgeClient
@@ -132,7 +134,7 @@ data class GpsEmulatorState(
 class I2PViewModel @JvmOverloads constructor(
     application: Application,
     private val samBridgeClient: SamBridgeClient = SamBridgeClient(),
-    private val i2pHttpClient: I2pHttpClient = I2pHttpClient(),
+    private val i2pHttpClient: I2pHttpClient? = null,
     private val diagnosticsClient: I2pDiagnosticsClient = I2pDiagnosticsClient(),
     private val routerAnimationDelayScale: Float = 1f
 ) : AndroidViewModel(application) {
@@ -144,7 +146,8 @@ class I2PViewModel @JvmOverloads constructor(
         secureMessageDao = db.secureMessageDao(),
         logDao = db.logDao(),
         trustedKeyDao = db.trustedKeyDao(),
-        contactDao = db.contactDao()
+        contactDao = db.contactDao(),
+        appSettingsDao = db.appSettingsDao()
     )
 
     // Exposed States
@@ -165,6 +168,12 @@ class I2PViewModel @JvmOverloads constructor(
 
     val trustedKeys: StateFlow<List<TrustedKey>> = repository.allTrustedKeys
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val endpointConfig: StateFlow<I2pEndpointConfig> = repository.endpointConfig
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), I2pEndpointConfig.LOCAL_ANDROID_ROUTER)
+
+    private val _appExperienceMode = MutableStateFlow(AppExperienceMode.RELEASE_REAL)
+    val appExperienceMode: StateFlow<AppExperienceMode> = _appExperienceMode.asStateFlow()
 
     private val _routerState = MutableStateFlow(RouterState())
     val routerState: StateFlow<RouterState> = _routerState.asStateFlow()
@@ -235,6 +244,20 @@ class I2PViewModel @JvmOverloads constructor(
         _routerState.update { it.copy(samHost = host, samPort = port) }
         viewModelScope.launch {
             repository.addLog("ROUTER", "SAM configuration updated to $host:$port", "INFO")
+        }
+    }
+
+    fun updateEndpointConfig(config: I2pEndpointConfig) {
+        _routerState.update {
+            it.copy(
+                samHost = config.host,
+                samPort = config.samPort,
+                httpProxyHost = config.host,
+                httpProxyPort = config.httpProxyPort
+            )
+        }
+        viewModelScope.launch {
+            repository.saveEndpointConfig(config)
         }
     }
 
@@ -402,6 +425,18 @@ class I2PViewModel @JvmOverloads constructor(
     init {
         // Seed initial discovered peers
         seedInitialPeers()
+        viewModelScope.launch {
+            repository.endpointConfig.collect { config ->
+                _routerState.update {
+                    it.copy(
+                        samHost = config.host,
+                        samPort = config.samPort,
+                        httpProxyHost = config.host,
+                        httpProxyPort = config.httpProxyPort
+                    )
+                }
+            }
+        }
         // Automatically seed defaults
         viewModelScope.launch {
             repository.seedDefaultsIfNeeded()
@@ -492,7 +527,7 @@ class I2PViewModel @JvmOverloads constructor(
     private suspend fun runI2pDiagnosticsNow(): I2pDiagnosticsResult {
         _isRunningDiagnostics.value = true
         return try {
-            val result = diagnosticsClient.runDiagnostics()
+            val result = diagnosticsClient.runDiagnostics(endpointConfig.value)
             _diagnosticsResult.value = result
             repository.addLog(
                 "DIAGNOSTIC",
@@ -508,13 +543,14 @@ class I2PViewModel @JvmOverloads constructor(
     internal suspend fun connectRouterForTest() {
         if (_routerState.value.isConnected || _routerState.value.isConnecting) return
 
-            val host = _routerState.value.samHost
-            val port = _routerState.value.samPort
+            val endpoint = endpointConfig.value
+            val host = endpoint.host
+            val port = endpoint.samPort
             _routerState.update { it.copy(isConnecting = true, statusText = "Checking real SAM Bridge on $host:$port...") }
             repository.addLog("ROUTER", "Probing real SAM bridge on $host:$port...", "INFO")
             
             // Try connecting to real SAM API
-            val samResult = samBridgeClient.connect(host, port)
+            val samResult = samBridgeClient.connect(endpoint)
             val realDest = samResult?.destination
             
             if (realDest != null) {
@@ -681,7 +717,9 @@ class I2PViewModel @JvmOverloads constructor(
                 }
             }
 
-            val fetchResult = i2pHttpClient.fetch(cleanUrl)
+            val endpoint = endpointConfig.value
+            val fetchClient = i2pHttpClient ?: I2pHttpClient.fromEndpointConfig(endpoint)
+            val fetchResult = fetchClient.fetch(cleanUrl)
             when (fetchResult.mode) {
                 I2pFetchMode.REAL_PROXY_OK -> repository.addLog(
                     "PROXY",
@@ -690,7 +728,7 @@ class I2PViewModel @JvmOverloads constructor(
                 )
                 I2pFetchMode.PROXY_UNAVAILABLE -> repository.addLog(
                     "PROXY",
-                    "Local I2P HTTP proxy unavailable at 127.0.0.1:4444 for $cleanUrl.",
+                    "Local I2P HTTP proxy unavailable at ${endpoint.host}:${endpoint.httpProxyPort} for $cleanUrl.",
                     "WARN"
                 )
                 I2pFetchMode.HOST_LOOKUP_FAILED -> repository.addLog(

@@ -46,7 +46,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
+import no.knoksen.i2pbrowser.AppExperienceMode
 import no.knoksen.i2pbrowser.i2p.I2pDiagnosticsSummary
+import no.knoksen.i2pbrowser.i2p.I2pEndpointConfig
 import no.knoksen.i2pbrowser.i2p.I2pFetchMode
 
 @Composable
@@ -56,6 +58,8 @@ fun RouterScreen(
 ) {
     val state by viewModel.routerState.collectAsState()
     val logs by viewModel.logs.collectAsState()
+    val endpointConfig by viewModel.endpointConfig.collectAsState()
+    val appMode by viewModel.appExperienceMode.collectAsState()
     val scope = rememberCoroutineScope()
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -152,7 +156,7 @@ fun RouterScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(
                             onClick = {
-                                viewModel.navigateBrowser("http://127.0.0.1:7657")
+                                viewModel.navigateBrowser("http://${endpointConfig.host}:${endpointConfig.routerConsolePort}")
                                 viewModel.navigateToTab("BROWSER")
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = CyberBlue, contentColor = CyberBlack),
@@ -169,7 +173,7 @@ fun RouterScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                "LAUNCH CONSOLE WEBUI (127.0.0.1:7657)",
+                                "LAUNCH CONSOLE WEBUI (${endpointConfig.host}:${endpointConfig.routerConsolePort})",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -349,6 +353,13 @@ fun RouterScreen(
         }
 
         item {
+            I2pEndpointSetupCard(
+                endpointConfig = endpointConfig,
+                onSave = { viewModel.updateEndpointConfig(it) }
+            )
+        }
+
+        item {
             I2pDiagnosticsPanel(viewModel = viewModel)
         }
 
@@ -502,9 +513,10 @@ fun RouterScreen(
             }
         }
 
-        // Global Peer Discovery System
-        item {
-            PeerDiscoverySection(viewModel = viewModel)
+        if (appMode == AppExperienceMode.LAB_SIMULATION) {
+            item {
+                PeerDiscoverySection(viewModel = viewModel)
+            }
         }
 
         // Router Console Logs
@@ -559,6 +571,7 @@ fun RouterScreen(
 fun I2pDiagnosticsPanel(viewModel: I2PViewModel) {
     val diagnostics by viewModel.diagnosticsResult.collectAsState()
     val isRunning by viewModel.isRunningDiagnostics.collectAsState()
+    val endpointConfig by viewModel.endpointConfig.collectAsState()
     val summary = diagnostics?.summary ?: I2pDiagnosticsSummary.UNKNOWN_ERROR
     val summaryColor = when (summary) {
         I2pDiagnosticsSummary.READY -> CyberGreen
@@ -622,9 +635,9 @@ fun I2pDiagnosticsPanel(viewModel: I2PViewModel) {
                 fontSize = 11.sp
             )
 
-            DiagnosticsServiceRow("SAM Bridge", "127.0.0.1:7656", diagnostics?.samReachable)
-            DiagnosticsServiceRow("HTTP Proxy", "127.0.0.1:4444", diagnostics?.httpProxyReachable)
-            DiagnosticsServiceRow("Router Console", "127.0.0.1:7657", diagnostics?.routerConsoleReachable)
+            DiagnosticsServiceRow("SAM Bridge", "${endpointConfig.host}:${endpointConfig.samPort}", diagnostics?.samReachable)
+            DiagnosticsServiceRow("HTTP Proxy", "${endpointConfig.host}:${endpointConfig.httpProxyPort}", diagnostics?.httpProxyReachable)
+            DiagnosticsServiceRow("Router Console", "${endpointConfig.host}:${endpointConfig.routerConsolePort}", diagnostics?.routerConsoleReachable)
 
             Box(
                 modifier = Modifier
@@ -652,6 +665,128 @@ fun I2pDiagnosticsPanel(viewModel: I2PViewModel) {
             }
         }
     }
+}
+
+@Composable
+fun I2pEndpointSetupCard(
+    endpointConfig: I2pEndpointConfig,
+    onSave: (I2pEndpointConfig) -> Unit
+) {
+    var hostInput by remember { mutableStateOf(endpointConfig.host) }
+    var samPortInput by remember { mutableStateOf(endpointConfig.samPort.toString()) }
+    var httpPortInput by remember { mutableStateOf(endpointConfig.httpProxyPort.toString()) }
+    var consolePortInput by remember { mutableStateOf(endpointConfig.routerConsolePort.toString()) }
+
+    LaunchedEffect(endpointConfig) {
+        hostInput = endpointConfig.host
+        samPortInput = endpointConfig.samPort.toString()
+        httpPortInput = endpointConfig.httpProxyPort.toString()
+        consolePortInput = endpointConfig.routerConsolePort.toString()
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.dp, CyberBorder),
+        modifier = Modifier.fillMaxWidth().testTag("i2p_endpoint_setup_card")
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                "I2P ENDPOINT SETUP",
+                style = MaterialTheme.typography.labelSmall,
+                color = CyberBlue,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Choose where your real I2P or i2pd router is running. These values drive SAM, HTTP proxy fetches, and diagnostics.",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextSecondary
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = { onSave(I2pEndpointConfig.LOCAL_ANDROID_ROUTER) },
+                    colors = ButtonDefaults.buttonColors(containerColor = CyberGreen.copy(alpha = 0.18f), contentColor = CyberGreen),
+                    border = BorderStroke(1.dp, CyberGreen),
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier.weight(1f).testTag("endpoint_local_button")
+                ) {
+                    Text("LOCAL", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick = {
+                        onSave(I2pEndpointConfig.desktopLanRouter(hostInput.ifBlank { "192.168.1.10" }))
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CyberBlue.copy(alpha = 0.18f), contentColor = CyberBlue),
+                    border = BorderStroke(1.dp, CyberBlue),
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier.weight(1f).testTag("endpoint_lan_button")
+                ) {
+                    Text("LAN", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            OutlinedTextField(
+                value = hostInput,
+                onValueChange = { hostInput = it },
+                label = { Text("Router host") },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                modifier = Modifier.fillMaxWidth().testTag("endpoint_host_input"),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedBorderColor = CyberBlue,
+                    unfocusedBorderColor = CyberBorder
+                )
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                EndpointPortField("SAM", samPortInput, { samPortInput = it }, Modifier.weight(1f))
+                EndpointPortField("HTTP", httpPortInput, { httpPortInput = it }, Modifier.weight(1f))
+                EndpointPortField("Console", consolePortInput, { consolePortInput = it }, Modifier.weight(1f))
+            }
+            Button(
+                onClick = {
+                    onSave(
+                        I2pEndpointConfig.manual(
+                            host = hostInput.ifBlank { "127.0.0.1" },
+                            samPort = samPortInput.toIntOrNull() ?: 7656,
+                            httpProxyPort = httpPortInput.toIntOrNull() ?: 4444,
+                            routerConsolePort = consolePortInput.toIntOrNull() ?: 7657
+                        )
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = CyberBlue, contentColor = CyberBlack),
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.fillMaxWidth().testTag("endpoint_manual_save_button")
+            ) {
+                Text("SAVE MANUAL ENDPOINT", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EndpointPortField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, fontSize = 10.sp) },
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+        modifier = modifier,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = TextPrimary,
+            unfocusedTextColor = TextPrimary,
+            focusedBorderColor = CyberBlue,
+            unfocusedBorderColor = CyberBorder
+        )
+    )
 }
 
 @Composable
@@ -809,6 +944,7 @@ fun BrowserScreen(
     val tabState by viewModel.browserTab.collectAsState()
     val bookmarks by viewModel.bookmarks.collectAsState()
     val routerState by viewModel.routerState.collectAsState()
+    val endpointConfig by viewModel.endpointConfig.collectAsState()
     
     var urlInput by remember { mutableStateOf(tabState.url) }
     var showBookmarkDialog by remember { mutableStateOf(false) }
@@ -1339,8 +1475,8 @@ fun BrowserScreen(
                     }
                 val securitySubtext =
                     when (tabState.fetchMode) {
-                        I2pFetchMode.REAL_PROXY_OK -> "Fetched through local I2P HTTP proxy at 127.0.0.1:4444."
-                        I2pFetchMode.PROXY_UNAVAILABLE -> "Could not reach local I2P HTTP proxy at 127.0.0.1:4444. Showing simulated fallback."
+                        I2pFetchMode.REAL_PROXY_OK -> "Fetched through configured I2P HTTP proxy at ${endpointConfig.host}:${endpointConfig.httpProxyPort}."
+                        I2pFetchMode.PROXY_UNAVAILABLE -> "Could not reach configured I2P HTTP proxy at ${endpointConfig.host}:${endpointConfig.httpProxyPort}. Showing simulated fallback."
                         I2pFetchMode.HOST_LOOKUP_FAILED -> "Proxy responded, but the .i2p host could not be resolved. Showing simulated fallback."
                         I2pFetchMode.SIMULATED_PREVIEW -> "This screen renders local simulated content, not a WebView/proxy browser."
                     }

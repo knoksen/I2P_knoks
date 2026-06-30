@@ -91,6 +91,10 @@ open class SamBridgeClient(
         }
     }
 
+    open suspend fun connect(config: I2pEndpointConfig, timeoutMs: Int = 2_000): SamBridgeResult? {
+        return connect(config.host, config.samPort, timeoutMs)
+    }
+
     open suspend fun nameLookup(name: String): String? {
         val connection = activeConnection ?: return null
         return withContext(Dispatchers.IO) {

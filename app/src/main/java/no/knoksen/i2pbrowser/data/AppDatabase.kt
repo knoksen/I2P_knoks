@@ -12,9 +12,10 @@ import androidx.room.RoomDatabase
         SecureMessage::class,
         LogEntry::class,
         TrustedKey::class,
-        Contact::class
+        Contact::class,
+        AppSettingsEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -24,6 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun logDao(): LogDao
     abstract fun trustedKeyDao(): TrustedKeyDao
     abstract fun contactDao(): ContactDao
+    abstract fun appSettingsDao(): AppSettingsDao
 
     companion object {
         @Volatile

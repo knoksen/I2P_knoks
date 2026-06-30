@@ -66,4 +66,14 @@ data class Contact(
     val lastActiveTimestamp: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "app_settings")
+data class AppSettingsEntity(
+    @PrimaryKey val id: Int = 1,
+    val endpointLabel: String = "Local Android Router",
+    val endpointHost: String = "127.0.0.1",
+    val samPort: Int = 7656,
+    val httpProxyPort: Int = 4444,
+    val routerConsolePort: Int = 7657
+)
+
 

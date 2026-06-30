@@ -64,8 +64,8 @@ class OkHttpI2pTransport(
 }
 
 open class I2pHttpClient(
-    private val proxyHost: String = "127.0.0.1",
-    private val proxyPort: Int = 4444,
+    val proxyHost: String = "127.0.0.1",
+    val proxyPort: Int = 4444,
     private val timeoutMs: Long = 2_500,
     private val transport: I2pHttpTransport = OkHttpI2pTransport(proxyHost, proxyPort, timeoutMs)
 ) {
@@ -106,6 +106,14 @@ open class I2pHttpClient(
     }
 
     companion object {
+        fun fromEndpointConfig(config: I2pEndpointConfig, timeoutMs: Long = 2_500): I2pHttpClient {
+            return I2pHttpClient(
+                proxyHost = config.host,
+                proxyPort = config.httpProxyPort,
+                timeoutMs = timeoutMs
+            )
+        }
+
         fun normalizeUrl(url: String): String {
             val trimmed = url.trim()
             return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed else "http://$trimmed"

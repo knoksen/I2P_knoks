@@ -39,6 +39,20 @@ enum class AppTab(val label: String, val icon: androidx.compose.ui.graphics.vect
     IDENTITY("Identity", Icons.Default.Fingerprint)
 }
 
+fun visibleAppTabs(
+    mode: AppExperienceMode,
+    hasRealSamIdentity: Boolean
+): List<AppTab> {
+    return when (mode) {
+        AppExperienceMode.RELEASE_REAL -> buildList {
+            add(AppTab.ROUTER)
+            add(AppTab.BROWSER)
+            if (hasRealSamIdentity) add(AppTab.IDENTITY)
+        }
+        AppExperienceMode.LAB_SIMULATION -> AppTab.values().toList()
+    }
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,7 +64,18 @@ class MainActivity : ComponentActivity() {
                 val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                 var currentTab by remember { mutableStateOf(AppTab.ROUTER) }
                 val routerState by viewModel.routerState.collectAsState()
+                val appMode by viewModel.appExperienceMode.collectAsState()
+                val visibleTabs = visibleAppTabs(
+                    mode = appMode,
+                    hasRealSamIdentity = routerState.isRealI2p && routerState.realDestination.isNotBlank()
+                )
                 var showProxySettingsDialog by remember { mutableStateOf(false) }
+
+                LaunchedEffect(visibleTabs, currentTab) {
+                    if (currentTab !in visibleTabs) {
+                        currentTab = AppTab.ROUTER
+                    }
+                }
 
                 LaunchedEffect(viewModel) {
                     viewModel.activeTabFlow.collect { tabName ->
@@ -180,7 +205,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                                 Divider(color = CyberBorder)
-                                GlobalVpnStatusBar(viewModel = viewModel, onVpnSettingsClick = { currentTab = AppTab.VPN_VPS })
+                                if (appMode == AppExperienceMode.LAB_SIMULATION) {
+                                    GlobalVpnStatusBar(viewModel = viewModel, onVpnSettingsClick = { currentTab = AppTab.VPN_VPS })
+                                }
                             }
                         },
                         bottomBar = {
@@ -188,7 +215,7 @@ class MainActivity : ComponentActivity() {
                                 containerColor = CyberDarkSurface,
                                 tonalElevation = 8.dp
                             ) {
-                                AppTab.values().forEach { tab ->
+                                visibleTabs.forEach { tab ->
                                     val isSelected = currentTab == tab
                                     NavigationBarItem(
                                         selected = isSelected,
@@ -246,6 +273,7 @@ fun DrawerContent(
     onClose: () -> Unit
 ) {
     val accessedNodes by viewModel.accessedNodesHistory.collectAsState()
+    val appMode by viewModel.appExperienceMode.collectAsState()
     
     ModalDrawerSheet(
         drawerContainerColor = CyberBlack,
@@ -291,22 +319,23 @@ fun DrawerContent(
             Divider(color = CyberBorder)
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Simulation Action Section
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
-                    onClick = { viewModel.simulateRandomNodeAccess() },
-                    colors = ButtonDefaults.buttonColors(containerColor = CyberBlue.copy(alpha = 0.2f)),
-                    shape = MaterialTheme.shapes.small,
-                    border = BorderStroke(1.dp, CyberBlue),
-                    modifier = Modifier.weight(1f).height(36.dp),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Simulate Node", tint = CyberBlue, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Simulate Node", fontSize = 11.sp, color = CyberBlue, fontWeight = FontWeight.Bold)
+                if (appMode == AppExperienceMode.LAB_SIMULATION) {
+                    Button(
+                        onClick = { viewModel.simulateRandomNodeAccess() },
+                        colors = ButtonDefaults.buttonColors(containerColor = CyberBlue.copy(alpha = 0.2f)),
+                        shape = MaterialTheme.shapes.small,
+                        border = BorderStroke(1.dp, CyberBlue),
+                        modifier = Modifier.weight(1f).height(36.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Simulate Node", tint = CyberBlue, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Simulate Node", fontSize = 11.sp, color = CyberBlue, fontWeight = FontWeight.Bold)
+                    }
                 }
 
                 Button(

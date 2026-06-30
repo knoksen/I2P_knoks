@@ -1,6 +1,8 @@
 package no.knoksen.i2pbrowser.data
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import no.knoksen.i2pbrowser.i2p.I2pEndpointConfig
 import java.security.KeyPairGenerator
 import java.security.KeyPair
 import android.util.Base64
@@ -12,7 +14,8 @@ class I2PRepository(
     private val secureMessageDao: SecureMessageDao,
     private val logDao: LogDao,
     private val trustedKeyDao: TrustedKeyDao,
-    private val contactDao: ContactDao
+    private val contactDao: ContactDao,
+    private val appSettingsDao: AppSettingsDao
 ) {
     val allBookmarks: Flow<List<Bookmark>> = bookmarkDao.getAllBookmarks()
     val allIdentities: Flow<List<Identity>> = identityDao.getAllIdentities()
@@ -20,6 +23,13 @@ class I2PRepository(
     val recentLogs: Flow<List<LogEntry>> = logDao.getRecentLogs()
     val allTrustedKeys: Flow<List<TrustedKey>> = trustedKeyDao.getAllTrustedKeys()
     val allContacts: Flow<List<Contact>> = contactDao.getAllContacts()
+    val endpointConfig: Flow<I2pEndpointConfig> = appSettingsDao.getSettings()
+        .map { settings -> settings?.toEndpointConfig() ?: I2pEndpointConfig.LOCAL_ANDROID_ROUTER }
+
+    suspend fun saveEndpointConfig(config: I2pEndpointConfig) {
+        appSettingsDao.upsertSettings(config.toEntity())
+        addLog("SETUP", "I2P endpoint saved: ${config.label} ${config.host}:${config.httpProxyPort}", "INFO")
+    }
 
     suspend fun addContact(name: String, address: String, type: String, status: String = "ONLINE", avatarColorHex: String = "#00B0FF") {
         contactDao.insertContact(
@@ -239,4 +249,24 @@ class I2PRepository(
             }
         }
     }
+}
+
+fun AppSettingsEntity.toEndpointConfig(): I2pEndpointConfig {
+    return I2pEndpointConfig(
+        label = endpointLabel,
+        host = endpointHost,
+        samPort = samPort,
+        httpProxyPort = httpProxyPort,
+        routerConsolePort = routerConsolePort
+    )
+}
+
+fun I2pEndpointConfig.toEntity(): AppSettingsEntity {
+    return AppSettingsEntity(
+        endpointLabel = label,
+        endpointHost = host,
+        samPort = samPort,
+        httpProxyPort = httpProxyPort,
+        routerConsolePort = routerConsolePort
+    )
 }

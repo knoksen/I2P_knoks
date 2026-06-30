@@ -87,4 +87,13 @@ interface ContactDao {
     suspend fun clearAllContacts()
 }
 
+@Dao
+interface AppSettingsDao {
+    @Query("SELECT * FROM app_settings WHERE id = 1")
+    fun getSettings(): Flow<AppSettingsEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertSettings(settings: AppSettingsEntity)
+}
+
 
