@@ -31,6 +31,12 @@ If Java/JDK preflight fails, see [Build Toolchain](BUILD_TOOLCHAIN.md). Local re
 | Invalid endpoint host | Try blank host, host with spaces, or `999.1.1.1`. | Config is rejected with visible validation error. Previous endpoint remains active. |
 | Invalid endpoint port | Try `0`, `65536`, or non-numeric input. | Config is rejected with visible validation error. Previous endpoint remains active. |
 | Proxy reachable but host lookup fails | Use HTTP proxy with an unknown `.i2p` hostname. | Browser shows host lookup failure, not a fake success. |
+| Successful `.i2p` HTTP response | Fetch a reachable eepsite through the configured HTTP proxy. | Page Inspector shows real proxy mode, status, content type, content length when available, elapsed time, fetched timestamp, headers, and safe preview text. |
+| 3xx redirect | Fetch an eepsite path that returns a redirect. | Page Inspector shows REDIRECT, Location header/redirect target, and does not auto-follow. |
+| 404/500 HTTP error | Fetch an eepsite path that returns 404 or 500. | Page Inspector shows HTTP_ERROR with the real status and response metadata. |
+| Timeout | Point endpoint at a slow/unresponsive proxy or use a very slow test target. | Page Inspector shows TIMEOUT, not proxy unavailable or fake success. |
+| Unsupported content type | Fetch binary or image content through the proxy. | Metadata is shown, preview is skipped with an unsupported content message. |
+| Script/style stripping in preview | Fetch controlled HTML containing script and style blocks. | Preview text omits script/style content and does not execute anything. |
 | Retry after diagnostics | Trigger a proxy failure, run diagnostics, fix router/proxy, tap Retry. | Browser retries the same URL without retyping. |
 | Reset endpoint to local | Change endpoint, then use reset/default. | Active endpoint returns to `127.0.0.1 / 7656 / 4444 / 7657`. |
 | SAM reachable but HELLO fails | SAM port accepts a socket but returns `NOVERSION` or `I2P_ERROR`. | SAM lifecycle shows FAILED with the HELLO error reason. |

@@ -10,6 +10,7 @@ Current release baseline: `v0.3.0-real-alpha`.
 - Configurable I2P endpoint setup for an external I2P or i2pd router.
 - SAM bridge probing through the selected endpoint.
 - HTTP proxy fetches for `.i2p` URLs through the selected endpoint.
+- Page Inspector v2 for proxy-backed `.i2p` status, headers, redirects, errors, and safe text preview.
 - Local service diagnostics for SAM, HTTP proxy, and router console ports.
 - Router console launch using the configured endpoint.
 - Non-destructive Room migration from database v4 to v5.
@@ -17,6 +18,7 @@ Current release baseline: `v0.3.0-real-alpha`.
 ## Still Lab Or Simulation
 
 - Full WebView browsing is not implemented.
+- Page inspection uses the configured I2P HTTP proxy and does not execute HTML or JavaScript.
 - OS-level VPN tunneling is not implemented.
 - Secure chat is not audited cryptography and remains lab/demo functionality.
 - Peer discovery is generated lab data.

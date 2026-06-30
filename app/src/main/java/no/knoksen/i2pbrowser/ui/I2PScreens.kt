@@ -50,6 +50,7 @@ import no.knoksen.i2pbrowser.AppExperienceMode
 import no.knoksen.i2pbrowser.i2p.I2pDiagnosticsSummary
 import no.knoksen.i2pbrowser.i2p.I2pEndpointConfig
 import no.knoksen.i2pbrowser.i2p.I2pFetchMode
+import no.knoksen.i2pbrowser.i2p.I2pHttpClient
 import no.knoksen.i2pbrowser.i2p.RealAlphaReadiness
 import no.knoksen.i2pbrowser.i2p.RealAlphaStatus
 import no.knoksen.i2pbrowser.i2p.SamSessionState
@@ -1681,27 +1682,77 @@ fun BrowserScreen(
                 val securityHeadline =
                     when (tabState.fetchMode) {
                         I2pFetchMode.REAL_PROXY_OK -> "REAL I2P HTTP PROXY RESPONSE"
+                        I2pFetchMode.REDIRECT -> "I2P HTTP REDIRECT"
+                        I2pFetchMode.HTTP_ERROR -> "I2P HTTP ERROR"
                         I2pFetchMode.PROXY_UNAVAILABLE -> "I2P HTTP PROXY UNAVAILABLE"
                         I2pFetchMode.HOST_LOOKUP_FAILED -> "I2P HOST LOOKUP FAILED"
+                        I2pFetchMode.TIMEOUT -> "I2P HTTP PROXY TIMEOUT"
+                        I2pFetchMode.UNSUPPORTED_CONTENT_TYPE -> "UNSUPPORTED PREVIEW CONTENT"
+                        I2pFetchMode.INVALID_URL -> "INVALID URL"
+                        I2pFetchMode.NON_I2P_URL -> "NON-I2P LOCAL PREVIEW"
                         I2pFetchMode.SIMULATED_PREVIEW -> if (routerState.isRealI2p) "REAL I2P ROUTER DETECTED" else "SIMULATED I2P PREVIEW MODE"
                     }
                 val securitySubtext =
                     when (tabState.fetchMode) {
                         I2pFetchMode.REAL_PROXY_OK -> "Fetched through configured I2P HTTP proxy at ${endpointConfig.host}:${endpointConfig.httpProxyPort}."
-                        I2pFetchMode.PROXY_UNAVAILABLE -> "Could not reach configured I2P HTTP proxy at ${endpointConfig.host}:${endpointConfig.httpProxyPort}. Showing simulated fallback."
-                        I2pFetchMode.HOST_LOOKUP_FAILED -> "Proxy responded, but the .i2p host could not be resolved. Showing simulated fallback."
+                        I2pFetchMode.REDIRECT -> "Proxy returned a redirect. Inspector mode does not auto-follow redirects."
+                        I2pFetchMode.HTTP_ERROR -> "Proxy returned an HTTP error response."
+                        I2pFetchMode.PROXY_UNAVAILABLE -> "Could not reach configured I2P HTTP proxy at ${endpointConfig.host}:${endpointConfig.httpProxyPort}."
+                        I2pFetchMode.HOST_LOOKUP_FAILED -> "Proxy responded, but the .i2p host could not be resolved."
+                        I2pFetchMode.TIMEOUT -> "The configured I2P HTTP proxy request timed out."
+                        I2pFetchMode.UNSUPPORTED_CONTENT_TYPE -> "Response metadata was captured, but preview was skipped for this content type."
+                        I2pFetchMode.INVALID_URL -> "Enter a valid HTTP or HTTPS URL."
+                        I2pFetchMode.NON_I2P_URL -> "Non-.i2p addresses use the local preview renderer, not the I2P HTTP proxy."
                         I2pFetchMode.SIMULATED_PREVIEW -> "This screen renders local simulated content, not a WebView/proxy browser."
                     }
                 val fetchColor = when (tabState.fetchMode) {
                     I2pFetchMode.REAL_PROXY_OK -> CyberGreen
-                    I2pFetchMode.PROXY_UNAVAILABLE, I2pFetchMode.HOST_LOOKUP_FAILED -> CyberOrange
+                    I2pFetchMode.REDIRECT -> CyberBlue
+                    I2pFetchMode.PROXY_UNAVAILABLE,
+                    I2pFetchMode.HOST_LOOKUP_FAILED,
+                    I2pFetchMode.TIMEOUT,
+                    I2pFetchMode.HTTP_ERROR,
+                    I2pFetchMode.UNSUPPORTED_CONTENT_TYPE,
+                    I2pFetchMode.INVALID_URL -> CyberOrange
+                    I2pFetchMode.NON_I2P_URL -> TextSecondary
                     I2pFetchMode.SIMULATED_PREVIEW -> TextSecondary
                 }
                 val fetchIcon = when (tabState.fetchMode) {
                     I2pFetchMode.REAL_PROXY_OK -> Icons.Default.CheckCircle
-                    I2pFetchMode.PROXY_UNAVAILABLE, I2pFetchMode.HOST_LOOKUP_FAILED -> Icons.Default.Warning
+                    I2pFetchMode.REDIRECT -> Icons.Default.CallMade
+                    I2pFetchMode.PROXY_UNAVAILABLE,
+                    I2pFetchMode.HOST_LOOKUP_FAILED,
+                    I2pFetchMode.TIMEOUT,
+                    I2pFetchMode.HTTP_ERROR,
+                    I2pFetchMode.UNSUPPORTED_CONTENT_TYPE,
+                    I2pFetchMode.INVALID_URL -> Icons.Default.Warning
+                    I2pFetchMode.NON_I2P_URL -> Icons.Default.Visibility
                     I2pFetchMode.SIMULATED_PREVIEW -> Icons.Default.Visibility
                 }
+                val fetchedAtText = tabState.fetchFetchedAtMillis?.let {
+                    SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(it))
+                } ?: "not fetched"
+                val inspectorRows = listOfNotNull(
+                    "Requested URL" to tabState.url,
+                    tabState.fetchFinalUrl?.let { "Final URL" to it },
+                    tabState.fetchStatusCode?.let {
+                        "HTTP status" to listOfNotNull(it.toString(), tabState.fetchStatusMessage).joinToString(" ")
+                    },
+                    tabState.fetchContentType?.let { "Content type" to it },
+                    tabState.fetchContentLength?.let { "Content length" to "$it bytes" },
+                    tabState.fetchElapsedMs?.let { "Elapsed" to "${it}ms" },
+                    "Fetched at" to fetchedAtText,
+                    tabState.fetchRedirectLocation?.let { "Redirect" to it },
+                    tabState.fetchError?.takeIf { it.isNotBlank() }?.let { "Error" to it }
+                )
+                val isRecoverableFailure = tabState.fetchMode in setOf(
+                    I2pFetchMode.PROXY_UNAVAILABLE,
+                    I2pFetchMode.HOST_LOOKUP_FAILED,
+                    I2pFetchMode.TIMEOUT,
+                    I2pFetchMode.HTTP_ERROR,
+                    I2pFetchMode.UNSUPPORTED_CONTENT_TYPE,
+                    I2pFetchMode.INVALID_URL
+                )
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1749,40 +1800,85 @@ fun BrowserScreen(
                                     fontFamily = FontFamily.Monospace
                                 )
                                 Spacer(modifier = Modifier.height(10.dp))
-                                Row(
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(CyberBlack, RoundedCornerShape(4.dp))
                                         .border(0.5.dp, fetchColor.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
                                         .padding(horizontal = 8.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
-                                    Text(
-                                        tabState.fetchMode.name,
-                                        color = fetchColor,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp,
-                                        fontFamily = FontFamily.Monospace
-                                    )
-                                    tabState.fetchStatusCode?.let { statusCode ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
                                         Text(
-                                            "HTTP $statusCode",
-                                            color = TextPrimary,
+                                            tabState.fetchMode.name,
+                                            color = fetchColor,
+                                            fontWeight = FontWeight.Bold,
                                             fontSize = 10.sp,
                                             fontFamily = FontFamily.Monospace
                                         )
+                                        tabState.fetchStatusCode?.let { statusCode ->
+                                            Text(
+                                                "HTTP $statusCode",
+                                                color = TextPrimary,
+                                                fontSize = 10.sp,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        }
                                     }
-                                    tabState.fetchError?.takeIf { it.isNotBlank() }?.let { error ->
+                                    inspectorRows.forEach { (label, value) ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                label,
+                                                color = TextSecondary,
+                                                fontSize = 10.sp,
+                                                fontFamily = FontFamily.Monospace,
+                                                modifier = Modifier.width(96.dp)
+                                            )
+                                            Text(
+                                                value,
+                                                color = TextPrimary,
+                                                fontSize = 10.sp,
+                                                fontFamily = FontFamily.Monospace,
+                                                maxLines = 2,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                    }
+                                    if (tabState.fetchResponseHeaders.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            error.take(90),
-                                            color = TextSecondary,
+                                            "Response headers",
+                                            color = fetchColor,
+                                            fontWeight = FontWeight.Bold,
                                             fontSize = 10.sp,
-                                            fontFamily = FontFamily.Monospace,
-                                            maxLines = 1,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
+                                            fontFamily = FontFamily.Monospace
                                         )
+                                        tabState.fetchResponseHeaders.entries.take(20).forEach { header ->
+                                            Text(
+                                                "${header.key}: ${header.value.take(160)}",
+                                                color = TextSecondary,
+                                                fontSize = 10.sp,
+                                                fontFamily = FontFamily.Monospace,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        if (tabState.fetchResponseHeaders.size > 20) {
+                                            Text(
+                                                "... ${tabState.fetchResponseHeaders.size - 20} more headers",
+                                                color = TextSecondary,
+                                                fontSize = 10.sp,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        }
                                     }
                                 }
                                 tabState.fetchBodyPreview?.takeIf { it.isNotBlank() }?.let { preview ->
@@ -1795,7 +1891,7 @@ fun BrowserScreen(
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                 }
-                                if (tabState.fetchMode == I2pFetchMode.PROXY_UNAVAILABLE || tabState.fetchMode == I2pFetchMode.HOST_LOOKUP_FAILED) {
+                                if (isRecoverableFailure || tabState.fetchMode == I2pFetchMode.REDIRECT) {
                                     Spacer(modifier = Modifier.height(10.dp))
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -1824,6 +1920,11 @@ fun BrowserScreen(
                                                     appendLine("URL: ${tabState.url}")
                                                     appendLine("Mode: ${tabState.fetchMode.name}")
                                                     appendLine("HTTP status: ${tabState.fetchStatusCode ?: "none"}")
+                                                    appendLine("Final URL: ${tabState.fetchFinalUrl ?: "none"}")
+                                                    appendLine("Content-Type: ${tabState.fetchContentType ?: "none"}")
+                                                    appendLine("Content-Length: ${tabState.fetchContentLength ?: "none"}")
+                                                    appendLine("Redirect: ${tabState.fetchRedirectLocation ?: "none"}")
+                                                    appendLine("Elapsed: ${tabState.fetchElapsedMs ?: "none"}ms")
                                                     appendLine("Endpoint: ${endpointConfig.host}:${endpointConfig.httpProxyPort}")
                                                     appendLine("Error: ${tabState.fetchError ?: "none"}")
                                                 }
@@ -1834,6 +1935,30 @@ fun BrowserScreen(
                                             modifier = Modifier.weight(1f).testTag("browser_copy_error_button")
                                         ) {
                                             Text("COPY ERROR", fontSize = 10.sp, color = CyberOrange, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                    tabState.fetchRedirectLocation?.takeIf { I2pHttpClient.isI2pRedirectTarget(it) }?.let { redirectTarget ->
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            OutlinedButton(
+                                                onClick = { clipboardManager.setText(AnnotatedString(redirectTarget)) },
+                                                border = BorderStroke(1.dp, CyberBlue),
+                                                shape = RoundedCornerShape(4.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("COPY REDIRECT", fontSize = 10.sp, color = CyberBlue, fontWeight = FontWeight.Bold)
+                                            }
+                                            Button(
+                                                onClick = { viewModel.navigateBrowser(redirectTarget) },
+                                                colors = ButtonDefaults.buttonColors(containerColor = CyberBlue, contentColor = CyberBlack),
+                                                shape = RoundedCornerShape(4.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("INSPECT TARGET", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            }
                                         }
                                     }
                                 }
