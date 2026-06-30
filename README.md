@@ -31,6 +31,15 @@ Current release baseline: `v0.3.0-real-alpha`.
 - I2P traffic requires a running external I2P or i2pd router.
 - `RELEASE_REAL` means real diagnostics, SAM probing, and HTTP proxy interactions. It does not mean anonymity by itself.
 
+More detail: [Security Boundaries](docs/SECURITY_BOUNDARIES.md).
+
+## Real Alpha Testing
+
+Use the reproducible test plan before cutting or reviewing alpha releases:
+
+- [Real Alpha Test Plan](docs/REAL_ALPHA_TEST_PLAN.md)
+- Local verification script: `.\scripts\local-release-verify.ps1`
+
 ## Endpoint Defaults
 
 Default local endpoint:
@@ -61,6 +70,12 @@ Verify locally:
 
 ```powershell
 .\gradlew.bat clean testDebugUnitTest assembleDebug
+```
+
+Run the release-facing claim check:
+
+```powershell
+.\scripts\check-release-claims.ps1
 ```
 
 ## Release Notes Template
