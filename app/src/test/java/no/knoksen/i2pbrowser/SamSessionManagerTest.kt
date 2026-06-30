@@ -23,7 +23,9 @@ class SamSessionManagerTest {
 
         assertEquals(SamSessionState.READY, status.state)
         assertEquals("publicDest", status.publicDestination)
+        assertEquals(true, status.privateDestinationPresent)
         assertEquals("3.1", status.samVersion)
+        assertEquals(false, status.toString().contains("privateSecretKey"))
     }
 
     @Test
@@ -55,7 +57,7 @@ class SamSessionManagerTest {
         val client = ScriptedSamBridgeClient(
             sessionResults = ArrayDeque(
                 listOf(
-                    SamProtocolReply("SESSION STATUS RESULT=I2P_ERROR MESSAGE=Unsupported", "I2P_ERROR", message = "Unsupported"),
+                    SamProtocolReply("SESSION STATUS RESULT=I2P_ERROR MESSAGE=Unsupported leaseSet encryption", "I2P_ERROR", message = "Unsupported leaseSet encryption"),
                     SamProtocolReply("SESSION STATUS RESULT=OK", "OK")
                 )
             )
@@ -74,8 +76,8 @@ class SamSessionManagerTest {
         val client = ScriptedSamBridgeClient(
             sessionResults = ArrayDeque(
                 listOf(
-                    SamProtocolReply("SESSION STATUS RESULT=I2P_ERROR MESSAGE=Duplicate ID", "I2P_ERROR", message = "Duplicate ID"),
-                    SamProtocolReply("SESSION STATUS RESULT=I2P_ERROR MESSAGE=Duplicate ID", "I2P_ERROR", message = "Duplicate ID")
+                    SamProtocolReply("SESSION STATUS RESULT=DUPLICATED_ID MESSAGE=Duplicate ID", "DUPLICATED_ID", message = "Duplicate ID"),
+                    SamProtocolReply("SESSION STATUS RESULT=OK", "OK")
                 )
             )
         )
@@ -86,6 +88,43 @@ class SamSessionManagerTest {
         assertEquals(SamSessionState.FAILED, status.state)
         assertTrue(status.error!!.contains("SESSION CREATE failed"))
         assertTrue(client.connection.closed)
+        assertEquals(listOf("6,4"), client.leaseSetAttempts)
+    }
+
+    @Test
+    fun `invalid key does not trigger leaseSet fallback`() = runTest {
+        val client = ScriptedSamBridgeClient(
+            sessionResults = ArrayDeque(
+                listOf(
+                    SamProtocolReply("SESSION STATUS RESULT=INVALID_KEY MESSAGE=Invalid private key", "INVALID_KEY", message = "Invalid private key"),
+                    SamProtocolReply("SESSION STATUS RESULT=OK", "OK")
+                )
+            )
+        )
+        val manager = SamSessionManager(client)
+
+        val status = manager.connect(config)
+
+        assertEquals(SamSessionState.FAILED, status.state)
+        assertEquals(listOf("6,4"), client.leaseSetAttempts)
+    }
+
+    @Test
+    fun `generic I2P error without leaseSet hint does not trigger fallback`() = runTest {
+        val client = ScriptedSamBridgeClient(
+            sessionResults = ArrayDeque(
+                listOf(
+                    SamProtocolReply("SESSION STATUS RESULT=I2P_ERROR MESSAGE=Router busy", "I2P_ERROR", message = "Router busy"),
+                    SamProtocolReply("SESSION STATUS RESULT=OK", "OK")
+                )
+            )
+        )
+        val manager = SamSessionManager(client)
+
+        val status = manager.connect(config)
+
+        assertEquals(SamSessionState.FAILED, status.state)
+        assertEquals(listOf("6,4"), client.leaseSetAttempts)
     }
 
     @Test
@@ -101,6 +140,8 @@ class SamSessionManagerTest {
         assertEquals(SamSessionState.READY, status.state)
         assertTrue(firstConnection.closed)
         assertEquals(2, client.openCalls)
+        assertEquals(2, client.sessionIds.distinct().size)
+        assertEquals(false, client.sessionIds.any { sessionId -> sessionId.any { it.isWhitespace() } })
     }
 
     @Test
@@ -162,17 +203,19 @@ class SamSessionManagerTest {
 private class ScriptedSamBridgeClient(
     val connection: FakeSamConnection = FakeSamConnection(),
     private val helloResult: SamProtocolReply = SamProtocolReply("HELLO REPLY RESULT=OK VERSION=3.1", "OK", version = "3.1"),
-    private val destinationResult: SamProtocolReply = SamProtocolReply("DEST REPLY RESULT=OK PUB=publicDest PRIV=privateDest", "OK", publicDestination = "publicDest", privateDestination = "privateDest"),
+    private val destinationResult: SamProtocolReply = SamProtocolReply("DEST REPLY PUB=publicDest PRIV=privateSecretKey", null, publicDestination = "publicDest", privateDestination = "privateSecretKey"),
     private val sessionResults: ArrayDeque<SamProtocolReply> = ArrayDeque(listOf(SamProtocolReply("SESSION STATUS RESULT=OK", "OK"))),
     private val lookupResult: SamProtocolReply = SamProtocolReply("NAMING REPLY RESULT=OK VALUE=dest", "OK", value = "dest")
 ) : SamBridgeClient() {
     val leaseSetAttempts = mutableListOf<String>()
+    val sessionIds = mutableListOf<String>()
     var lookupCalls = 0
 
     override fun openControlSocket(host: String, port: Int, timeoutMs: Int): SamConnection = connection
     override fun hello(connection: SamConnection): SamProtocolReply = helloResult
     override fun generateDestination(connection: SamConnection): SamProtocolReply = destinationResult
     override fun createStreamSession(connection: SamConnection, sessionId: String, destination: String, leaseSetEncType: String): SamProtocolReply {
+        sessionIds += sessionId
         leaseSetAttempts += leaseSetEncType
         return sessionResults.removeFirst()
     }
@@ -186,6 +229,7 @@ private class ReconnectingSamBridgeClient(
     private val connections: ArrayDeque<FakeSamConnection>
 ) : SamBridgeClient() {
     var openCalls = 0
+    val sessionIds = mutableListOf<String>()
 
     override fun openControlSocket(host: String, port: Int, timeoutMs: Int): SamConnection {
         openCalls += 1
@@ -197,10 +241,11 @@ private class ReconnectingSamBridgeClient(
     }
 
     override fun generateDestination(connection: SamConnection): SamProtocolReply {
-        return SamProtocolReply("DEST REPLY RESULT=OK PUB=publicDest PRIV=privateDest", "OK", publicDestination = "publicDest", privateDestination = "privateDest")
+        return SamProtocolReply("DEST REPLY PUB=publicDest PRIV=privateDest", null, publicDestination = "publicDest", privateDestination = "privateDest")
     }
 
     override fun createStreamSession(connection: SamConnection, sessionId: String, destination: String, leaseSetEncType: String): SamProtocolReply {
+        sessionIds += sessionId
         return SamProtocolReply("SESSION STATUS RESULT=OK", "OK")
     }
 }

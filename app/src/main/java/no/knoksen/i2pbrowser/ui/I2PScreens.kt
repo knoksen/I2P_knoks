@@ -634,7 +634,8 @@ fun SamLifecycleCard(
             DiagnosticsServiceRow("SAM State", "${endpointConfig.host}:${endpointConfig.samPort}", status.state == SamSessionState.READY)
             SamStatusRow("Session ID", status.sessionId ?: "not created")
             SamStatusRow("SAM Version", status.samVersion ?: "unknown")
-            SamStatusRow("Destination Present", if (status.publicDestination.isNullOrBlank()) "no" else "yes")
+            SamStatusRow("Public Destination Present", if (status.publicDestination.isNullOrBlank()) "no" else "yes")
+            SamStatusRow("Private Material Present", if (status.privateDestinationPresent) "yes" else "no")
             SamStatusRow("Connected", formatTimestamp(status.connectedAtMillis))
             status.error?.takeIf { it.isNotBlank() }?.let { SamStatusRow("Last Error", it) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {

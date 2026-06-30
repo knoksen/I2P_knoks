@@ -28,6 +28,10 @@ data class SamProtocolReply(
     val message: String? = null
 ) {
     val isOk: Boolean = result == "OK"
+    val isDestinationReplyOk: Boolean =
+        (result == null || result == "OK") &&
+            !publicDestination.isNullOrBlank() &&
+            !privateDestination.isNullOrBlank()
 }
 
 interface SamConnection : Closeable {
@@ -109,15 +113,16 @@ open class SamBridgeClient(
                 val generated = generateDestination(connection)
                 val privateDestination = generated.privateDestination ?: generated.destination
                 val publicDestination = generated.publicDestination ?: generated.destination
-                if (!generated.isOk || privateDestination.isNullOrBlank() || publicDestination.isNullOrBlank()) {
+                if (!generated.isDestinationReplyOk || privateDestination.isNullOrBlank() || publicDestination.isNullOrBlank()) {
                     connection.close()
                     return@withContext null
                 }
 
                 var compatibilityFallbackUsed = false
-                var sessionReply = createStreamSession(connection, DEFAULT_SESSION_ID, privateDestination, "6,4")
-                if (!sessionReply.isOk) {
-                    val fallbackReply = createStreamSession(connection, DEFAULT_SESSION_ID, privateDestination, "4")
+                val sessionId = newSessionId()
+                var sessionReply = createStreamSession(connection, sessionId, privateDestination, "6,4")
+                if (!sessionReply.isOk && shouldRetryLeaseSetFallback(sessionReply)) {
+                    val fallbackReply = createStreamSession(connection, sessionId, privateDestination, "4")
                     if (fallbackReply.isOk) {
                         compatibilityFallbackUsed = true
                         sessionReply = fallbackReply
@@ -179,7 +184,9 @@ open class SamBridgeClient(
     }
 
     companion object {
-        const val DEFAULT_SESSION_ID = "I2P_KNOKS_SESSION"
+        const val SESSION_ID_PREFIX = "i2p_knoks_"
+
+        fun newSessionId(): String = SESSION_ID_PREFIX + java.util.UUID.randomUUID().toString().replace("-", "")
 
         fun parseSamReply(line: String): SamProtocolReply {
             return SamProtocolReply(
@@ -192,6 +199,12 @@ open class SamBridgeClient(
                 value = line.samValue("VALUE"),
                 message = line.samMessageValue()
             )
+        }
+
+        fun shouldRetryLeaseSetFallback(reply: SamProtocolReply): Boolean {
+            val text = "${reply.result.orEmpty()} ${reply.message.orEmpty()}".lowercase()
+            return reply.result == "I2P_ERROR" &&
+                listOf("leaseset", "lease set", "enc", "encrypt", "unsupported").any { it in text }
         }
     }
 }

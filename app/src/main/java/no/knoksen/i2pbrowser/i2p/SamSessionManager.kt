@@ -22,8 +22,8 @@ enum class SamSessionState {
 data class SamSessionStatus(
     val state: SamSessionState,
     val sessionId: String? = null,
-    val destination: String? = null,
     val publicDestination: String? = null,
+    val privateDestinationPresent: Boolean = false,
     val error: String? = null,
     val samVersion: String? = null,
     val connectedAtMillis: Long? = null,
@@ -59,7 +59,7 @@ open class SamSessionManager(
             if (_status.value.state == SamSessionState.CONNECTING) return@withLock _status.value
 
             closeConnection()
-            val sessionId = SamBridgeClient.DEFAULT_SESSION_ID
+            val sessionId = SamBridgeClient.newSessionId()
             update(SamSessionStatus(SamSessionState.CONNECTING, sessionId = sessionId))
 
             withContext(Dispatchers.IO) {
@@ -74,20 +74,20 @@ open class SamSessionManager(
                     val generated = samBridgeClient.generateDestination(socket)
                     val privateDestination = generated.privateDestination ?: generated.destination
                     val publicDestination = generated.publicDestination ?: generated.destination
-                    if (!generated.isOk || privateDestination.isNullOrBlank() || publicDestination.isNullOrBlank()) {
+                    if (!generated.isDestinationReplyOk || privateDestination.isNullOrBlank() || publicDestination.isNullOrBlank()) {
                         return@withContext fail("DEST GENERATE failed: ${generated.message ?: generated.result ?: "missing destination"}")
                     }
                     update(
                         _status.value.copy(
                             state = SamSessionState.DESTINATION_GENERATED,
-                            destination = privateDestination,
-                            publicDestination = publicDestination
+                            publicDestination = publicDestination,
+                            privateDestinationPresent = true
                         )
                     )
 
                     var session = samBridgeClient.createStreamSession(socket, sessionId, privateDestination, "6,4")
                     var fallbackMessage: String? = null
-                    if (!session.isOk) {
+                    if (!session.isOk && SamBridgeClient.shouldRetryLeaseSetFallback(session)) {
                         val fallback = samBridgeClient.createStreamSession(socket, sessionId, privateDestination, "4")
                         if (fallback.isOk) {
                             session = fallback

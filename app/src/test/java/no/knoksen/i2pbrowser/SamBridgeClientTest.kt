@@ -13,7 +13,7 @@ class SamBridgeClientTest {
     fun `valid hello destination and session response returns public destination`() = runTest {
         val connection = FakeSamConnection(
             "HELLO REPLY RESULT=OK VERSION=3.1",
-            "DEST REPLY RESULT=OK PUB=publicDest PRIV=privateDest",
+            "DEST REPLY PUB=publicDest PRIV=privateDest",
             "SESSION STATUS RESULT=OK"
         )
         val client = SamBridgeClient(connectionFactory = { _, _, _ -> connection })
@@ -23,7 +23,7 @@ class SamBridgeClientTest {
         assertEquals("publicDest", result?.destination)
         assertEquals("3.1", result?.samVersion)
         assertEquals(
-            "SESSION CREATE STYLE=STREAM ID=I2P_KNOKS_SESSION DESTINATION=privateDest i2cp.leaseSetEncType=6,4",
+            "SESSION CREATE STYLE=STREAM ID=${connection.writes.last().substringAfter("ID=").substringBefore(" ")} DESTINATION=privateDest i2cp.leaseSetEncType=6,4",
             connection.writes.last()
         )
     }
@@ -54,10 +54,32 @@ class SamBridgeClientTest {
 
     @Test
     fun `destination parser extracts public and private material`() {
-        val reply = SamBridgeClient.parseSamReply("DEST REPLY RESULT=OK PUB=publicDest PRIV=privateDest")
+        val reply = SamBridgeClient.parseSamReply("DEST REPLY PUB=publicDest PRIV=privateDest")
 
         assertEquals("publicDest", reply.publicDestination)
         assertEquals("privateDest", reply.privateDestination)
+        assertEquals(true, reply.isDestinationReplyOk)
+    }
+
+    @Test
+    fun `destination parser accepts optional RESULT OK`() {
+        val reply = SamBridgeClient.parseSamReply("DEST REPLY RESULT=OK PUB=publicDest PRIV=privateDest")
+
+        assertEquals(true, reply.isDestinationReplyOk)
+    }
+
+    @Test
+    fun `destination parser rejects missing private material`() {
+        val reply = SamBridgeClient.parseSamReply("DEST REPLY PUB=publicDest")
+
+        assertEquals(false, reply.isDestinationReplyOk)
+    }
+
+    @Test
+    fun `destination parser rejects missing public material`() {
+        val reply = SamBridgeClient.parseSamReply("DEST REPLY PRIV=privateDest")
+
+        assertEquals(false, reply.isDestinationReplyOk)
     }
 
     @Test
@@ -87,7 +109,7 @@ class SamBridgeClientTest {
     fun `session create fallback to leaseSetEncType 4 is explicit`() = runTest {
         val connection = FakeSamConnection(
             "HELLO REPLY RESULT=OK VERSION=3.1",
-            "DEST REPLY RESULT=OK PUB=publicDest PRIV=privateDest",
+            "DEST REPLY PUB=publicDest PRIV=privateDest",
             "SESSION STATUS RESULT=I2P_ERROR MESSAGE=Unsupported leaseSetEncType",
             "SESSION STATUS RESULT=OK"
         )
@@ -98,9 +120,17 @@ class SamBridgeClientTest {
         assertEquals("publicDest", result?.destination)
         assertEquals(true, result?.compatibilityFallbackUsed)
         assertEquals(
-            "SESSION CREATE STYLE=STREAM ID=I2P_KNOKS_SESSION DESTINATION=privateDest i2cp.leaseSetEncType=4",
+            "SESSION CREATE STYLE=STREAM ID=${connection.writes.last().substringAfter("ID=").substringBefore(" ")} DESTINATION=privateDest i2cp.leaseSetEncType=4",
             connection.writes.last()
         )
+    }
+
+    @Test
+    fun `generated session id contains no whitespace`() {
+        val sessionId = SamBridgeClient.newSessionId()
+
+        assertTrue(sessionId.startsWith(SamBridgeClient.SESSION_ID_PREFIX))
+        assertEquals(false, sessionId.any { it.isWhitespace() })
     }
 }
 
