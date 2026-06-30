@@ -348,6 +348,24 @@ class SamSessionManagerTest {
         assertEquals(SamNameLookupMode.SAM_UNAVAILABLE, result.mode)
         assertTrue(result.error!!.contains("NAME LOOKUP timed out after 321ms"))
     }
+
+    @Test
+    fun `name lookup cancellation rethrows without mutating session state`() = runTest {
+        val client = CancellingLookupSamBridgeClient()
+        val manager = SamSessionManager(client)
+        manager.connect(config)
+        val before = manager.status.value
+        var cancelled = false
+
+        try {
+            manager.nameLookup("site.i2p")
+        } catch (_: CancellationException) {
+            cancelled = true
+        }
+
+        assertTrue(cancelled)
+        assertEquals(before, manager.status.value)
+    }
 }
 
 private class ManagerFakeSamConnection(vararg replies: String) : SamConnection {
@@ -472,6 +490,28 @@ private class BlockingSamBridgeClient(
 
     override fun createStreamSession(connection: SamConnection, sessionId: String, destination: String, leaseSetEncType: String): SamProtocolReply {
         return SamProtocolReply("SESSION STATUS RESULT=OK", "OK")
+    }
+}
+
+private class CancellingLookupSamBridgeClient(
+    val connection: ManagerFakeSamConnection = ManagerFakeSamConnection()
+) : SamBridgeClient() {
+    override fun openControlSocket(host: String, port: Int, timeoutMs: Int): SamConnection = connection
+
+    override fun hello(connection: SamConnection): SamProtocolReply {
+        return SamProtocolReply("HELLO REPLY RESULT=OK VERSION=3.1", "OK", version = "3.1")
+    }
+
+    override fun generateDestination(connection: SamConnection): SamProtocolReply {
+        return SamProtocolReply("DEST REPLY PUB=publicDest PRIV=privateSecretKey", null, publicDestination = "publicDest", privateDestination = "privateSecretKey")
+    }
+
+    override fun createStreamSession(connection: SamConnection, sessionId: String, destination: String, leaseSetEncType: String): SamProtocolReply {
+        return SamProtocolReply("SESSION STATUS RESULT=OK", "OK")
+    }
+
+    override fun nameLookup(connection: SamConnection, name: String): SamProtocolReply {
+        throw CancellationException("lookup cancelled")
     }
 }
 

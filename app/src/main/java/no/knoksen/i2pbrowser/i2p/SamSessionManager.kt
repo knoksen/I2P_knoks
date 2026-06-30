@@ -172,6 +172,8 @@ open class SamSessionManager(
                     reply.result == "I2P_ERROR" -> SamNameLookupResult(cleanName, SamNameLookupMode.NOT_FOUND, error = reply.message)
                     else -> SamNameLookupResult(cleanName, SamNameLookupMode.ERROR, error = reply.message ?: reply.result)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: SocketTimeoutException) {
                 SamNameLookupResult(cleanName, SamNameLookupMode.SAM_UNAVAILABLE, error = "NAME LOOKUP timed out after ${timeoutPolicy.nameLookupReadTimeoutMs}ms.")
             } catch (e: Exception) {

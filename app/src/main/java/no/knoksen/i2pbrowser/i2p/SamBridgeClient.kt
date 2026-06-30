@@ -1,6 +1,7 @@
 package no.knoksen.i2pbrowser.i2p
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.Closeable
@@ -155,6 +156,13 @@ open class SamBridgeClient(
                     samVersion = helloReply.version,
                     compatibilityFallbackUsed = compatibilityFallbackUsed
                 )
+            } catch (e: CancellationException) {
+                try {
+                    connection?.close()
+                } catch (_: Exception) {
+                    // Best effort cleanup.
+                }
+                throw e
             } catch (_: Exception) {
                 try {
                     connection?.close()
@@ -185,6 +193,8 @@ open class SamBridgeClient(
                 } else {
                     null
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 null
             }
