@@ -46,6 +46,18 @@ class I2pDiagnosticsClientTest {
     }
 
     @Test
+    fun `router console only maps to SAM disabled`() {
+        val result = I2pDiagnosticsClient.fromPortStates(
+            samReachable = false,
+            httpProxyReachable = false,
+            routerConsoleReachable = true
+        )
+
+        assertEquals(I2pDiagnosticsSummary.SAM_DISABLED, result.summary)
+        assertTrue(result.recommendedAction.contains("enable SAM"))
+    }
+
+    @Test
     fun `SAM without HTTP proxy maps to HTTP proxy disabled`() {
         val result = I2pDiagnosticsClient.fromPortStates(
             samReachable = true,
