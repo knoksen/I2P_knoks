@@ -65,8 +65,10 @@ class I2pEndpointConfigTest {
             I2pEndpointConfig.manual("", 7656, 4444, 7657),
             I2pEndpointConfig.manual("router host", 7656, 4444, 7657),
             I2pEndpointConfig.manual("256.1.1.1", 7656, 4444, 7657),
+            I2pEndpointConfig.manual("999.1.1.1", 7656, 4444, 7657),
             I2pEndpointConfig.manual("router_lan", 7656, 4444, 7657),
             I2pEndpointConfig.manual("127.0.0.1", 0, 4444, 7657),
+            I2pEndpointConfig.manual("127.0.0.1", 7656, 65536, 7657),
             I2pEndpointConfig.manual("127.0.0.1", 7656, 70000, 7657),
             I2pEndpointConfig.manual("127.0.0.1", 7656, 4444, -1)
         )

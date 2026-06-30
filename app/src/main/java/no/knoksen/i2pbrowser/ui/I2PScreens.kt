@@ -3411,7 +3411,7 @@ fun GarlicChatTab(
                             Icon(Icons.Default.Forum, contentDescription = null, tint = contactColor.copy(alpha = 0.4f), modifier = Modifier.size(36.dp))
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                "No messages exchanged in this secure tunnel.",
+                                "No demo messages stored for this contact.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary,
                                 textAlign = TextAlign.Center
