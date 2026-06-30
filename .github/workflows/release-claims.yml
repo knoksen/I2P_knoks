@@ -4,12 +4,16 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "README.md"
       - "docs/**"
       - "app/src/main/java/**"
       - "scripts/check-release-claims.ps1"
       - ".github/workflows/release-claims.yml"
+
+permissions:
+  contents: read
 
 jobs:
   release-claims:
