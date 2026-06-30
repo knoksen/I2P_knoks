@@ -58,7 +58,7 @@ class I2PRepository(
     }
 
     suspend fun addLog(tag: String, message: String, level: String = "INFO") {
-        logDao.insertLog(LogEntry(tag = tag, message = message, level = level))
+        logDao.insertLog(LogEntry(tag = tag, message = LogSanitizer.sanitize(message), level = level))
     }
 
     suspend fun clearLogs() {
@@ -269,4 +269,35 @@ fun I2pEndpointConfig.toEntity(): AppSettingsEntity {
         httpProxyPort = httpProxyPort,
         routerConsolePort = routerConsolePort
     )
+}
+
+internal object LogSanitizer {
+    private const val MAX_LOG_MESSAGE_LENGTH = 500
+    private const val REDACTED = "[redacted]"
+    private const val SENSITIVE_FIELD_NAMES =
+        "Set-Cookie|Authorization|Cookie|PRIV|privateDestination|privateKeyBase64|apiKey|GEMINI_API_KEY|password|credential|secret|token|body|messageBody|decryptedBody|plaintext"
+
+    private val sensitivePatterns = listOf(
+        Regex("""(?is)\b($SENSITIVE_FIELD_NAMES)\s*[:=]\s*("[^"]*"|'[^']*'|.*?)(?=\s+\b(?:$SENSITIVE_FIELD_NAMES)\s*[:=]|$)"""),
+        Regex("""(?is)-----BEGIN PRIVATE KEY-----.*?-----END PRIVATE KEY-----""")
+    )
+
+    fun sanitize(message: String): String {
+        val redacted = sensitivePatterns
+            .fold(message) { current, pattern ->
+                pattern.replace(current) { match ->
+                    if (match.groupValues.size > 1) {
+                        "${match.groupValues[1]}=$REDACTED"
+                    } else {
+                        REDACTED
+                    }
+                }
+            }
+
+        return if (redacted.length > MAX_LOG_MESSAGE_LENGTH) {
+            redacted.take(MAX_LOG_MESSAGE_LENGTH) + "... [truncated]"
+        } else {
+            redacted
+        }
+    }
 }

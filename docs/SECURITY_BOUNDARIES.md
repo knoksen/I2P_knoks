@@ -36,3 +36,5 @@ Default local services:
 ## Logging Boundary
 
 Logs should help troubleshoot local service state without storing sensitive material. Do not log private destination keys, credentials, API keys, full message bodies, or sensitive headers.
+
+Application log messages are sanitized before they are stored in Room. The sanitizer redacts obvious private SAM destination material, credentials, API keys, sensitive headers, and message body fields, and caps very long log messages.
