@@ -1,5 +1,9 @@
 $ErrorActionPreference = "Stop"
 
+if (-not (Get-Command rg -ErrorAction SilentlyContinue)) {
+    throw "ripgrep (rg) is required. Install with: winget install BurntSushi.ripgrep.MSVC"
+}
+
 $patterns = @(
     "VPN active",
     "encrypted messenger",
