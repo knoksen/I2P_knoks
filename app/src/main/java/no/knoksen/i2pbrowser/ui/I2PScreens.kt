@@ -46,6 +46,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
+import no.knoksen.i2pbrowser.i2p.I2pFetchMode
 
 @Composable
 fun RouterScreen(
@@ -1188,10 +1189,29 @@ fun BrowserScreen(
                 }
             } else {
                 val securityHeadline =
-                    if (routerState.isRealI2p) "REAL I2P ROUTING ACTIVE" else "SIMULATED I2P PREVIEW MODE"
+                    when (tabState.fetchMode) {
+                        I2pFetchMode.REAL_PROXY_OK -> "REAL I2P HTTP PROXY RESPONSE"
+                        I2pFetchMode.PROXY_UNAVAILABLE -> "I2P HTTP PROXY UNAVAILABLE"
+                        I2pFetchMode.HOST_LOOKUP_FAILED -> "I2P HOST LOOKUP FAILED"
+                        I2pFetchMode.SIMULATED_PREVIEW -> if (routerState.isRealI2p) "REAL I2P ROUTER DETECTED" else "SIMULATED I2P PREVIEW MODE"
+                    }
                 val securitySubtext =
-                    if (routerState.isRealI2p) "Connected through local SAM bridge / I2P router."
-                    else "No real I2P router detected. This screen renders local simulated content, not a WebView/proxy browser."
+                    when (tabState.fetchMode) {
+                        I2pFetchMode.REAL_PROXY_OK -> "Fetched through local I2P HTTP proxy at 127.0.0.1:4444."
+                        I2pFetchMode.PROXY_UNAVAILABLE -> "Could not reach local I2P HTTP proxy at 127.0.0.1:4444. Showing simulated fallback."
+                        I2pFetchMode.HOST_LOOKUP_FAILED -> "Proxy responded, but the .i2p host could not be resolved. Showing simulated fallback."
+                        I2pFetchMode.SIMULATED_PREVIEW -> "This screen renders local simulated content, not a WebView/proxy browser."
+                    }
+                val fetchColor = when (tabState.fetchMode) {
+                    I2pFetchMode.REAL_PROXY_OK -> CyberGreen
+                    I2pFetchMode.PROXY_UNAVAILABLE, I2pFetchMode.HOST_LOOKUP_FAILED -> CyberOrange
+                    I2pFetchMode.SIMULATED_PREVIEW -> TextSecondary
+                }
+                val fetchIcon = when (tabState.fetchMode) {
+                    I2pFetchMode.REAL_PROXY_OK -> Icons.Default.CheckCircle
+                    I2pFetchMode.PROXY_UNAVAILABLE, I2pFetchMode.HOST_LOOKUP_FAILED -> Icons.Default.Warning
+                    I2pFetchMode.SIMULATED_PREVIEW -> Icons.Default.Visibility
+                }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1206,16 +1226,16 @@ fun BrowserScreen(
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        if (routerState.isRealI2p) Icons.Default.Lock else Icons.Default.Visibility,
+                                        fetchIcon,
                                         contentDescription = null,
-                                        tint = if (routerState.isRealI2p) CyberGreen else CyberOrange,
+                                        tint = fetchColor,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         securityHeadline,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = if (routerState.isRealI2p) CyberGreen else CyberOrange,
+                                        color = fetchColor,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -1238,6 +1258,53 @@ fun BrowserScreen(
                                     color = TextSecondary,
                                     fontFamily = FontFamily.Monospace
                                 )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(CyberBlack, RoundedCornerShape(4.dp))
+                                        .border(0.5.dp, fetchColor.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        tabState.fetchMode.name,
+                                        color = fetchColor,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                    tabState.fetchStatusCode?.let { statusCode ->
+                                        Text(
+                                            "HTTP $statusCode",
+                                            color = TextPrimary,
+                                            fontSize = 10.sp,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                    tabState.fetchError?.takeIf { it.isNotBlank() }?.let { error ->
+                                        Text(
+                                            error.take(90),
+                                            color = TextSecondary,
+                                            fontSize = 10.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                                tabState.fetchBodyPreview?.takeIf { it.isNotBlank() }?.let { preview ->
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        preview,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextSecondary,
+                                        maxLines = 3,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }

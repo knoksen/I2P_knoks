@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import no.knoksen.i2pbrowser.data.*
+import no.knoksen.i2pbrowser.i2p.I2pFetchMode
+import no.knoksen.i2pbrowser.i2p.I2pHttpClient
 import no.knoksen.i2pbrowser.i2p.SamBridgeClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -43,7 +45,11 @@ data class BrowserTab(
     val history: List<String> = listOf("http://i2p-project.i2p"),
     val currentHistoryIndex: Int = 0,
     val pageTitle: String = "I2P Project Homepage",
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val fetchMode: I2pFetchMode = I2pFetchMode.SIMULATED_PREVIEW,
+    val fetchStatusCode: Int? = null,
+    val fetchBodyPreview: String? = null,
+    val fetchError: String? = "Initial local preview content."
 )
 
 enum class PeerStatus {
@@ -124,6 +130,7 @@ data class GpsEmulatorState(
 class I2PViewModel @JvmOverloads constructor(
     application: Application,
     private val samBridgeClient: SamBridgeClient = SamBridgeClient(),
+    private val i2pHttpClient: I2pHttpClient = I2pHttpClient(),
     private val routerAnimationDelayScale: Float = 1f
 ) : AndroidViewModel(application) {
 
@@ -612,7 +619,16 @@ class I2PViewModel @JvmOverloads constructor(
         }
 
         viewModelScope.launch {
-            _browserTab.update { it.copy(isLoading = true, url = cleanUrl) }
+            _browserTab.update {
+                it.copy(
+                    isLoading = true,
+                    url = cleanUrl,
+                    fetchMode = I2pFetchMode.SIMULATED_PREVIEW,
+                    fetchStatusCode = null,
+                    fetchBodyPreview = null,
+                    fetchError = null
+                )
+            }
             val state = _routerState.value
             val proxyMsg = when {
                 state.httpProxyEnabled && state.socksProxyEnabled -> "HTTP (${state.httpProxyHost}:${state.httpProxyPort}) + SOCKS (${state.socksProxyHost}:${state.socksProxyPort})"
@@ -633,6 +649,30 @@ class I2PViewModel @JvmOverloads constructor(
                 }
             }
 
+            val fetchResult = i2pHttpClient.fetch(cleanUrl)
+            when (fetchResult.mode) {
+                I2pFetchMode.REAL_PROXY_OK -> repository.addLog(
+                    "PROXY",
+                    "Real I2P HTTP proxy response for $cleanUrl: HTTP ${fetchResult.statusCode}",
+                    "SUCCESS"
+                )
+                I2pFetchMode.PROXY_UNAVAILABLE -> repository.addLog(
+                    "PROXY",
+                    "Local I2P HTTP proxy unavailable at 127.0.0.1:4444 for $cleanUrl.",
+                    "WARN"
+                )
+                I2pFetchMode.HOST_LOOKUP_FAILED -> repository.addLog(
+                    "PROXY",
+                    "I2P host lookup failed for $cleanUrl through local HTTP proxy.",
+                    "WARN"
+                )
+                I2pFetchMode.SIMULATED_PREVIEW -> repository.addLog(
+                    "PROXY",
+                    "Using simulated preview renderer for $cleanUrl.",
+                    "INFO"
+                )
+            }
+
             // Simulating dynamic latency and garlic routing steps based on active accessories
             var routingDelay = 1500L
             val accessories = _activeAccessories.value
@@ -644,16 +684,7 @@ class I2PViewModel @JvmOverloads constructor(
 
             delay(routingDelay)
 
-            val pageTitle = when {
-                cleanUrl.contains("127.0.0.1:7657") || cleanUrl.contains("localhost:7657") || cleanUrl.contains("router-console") -> "I2P Router Console WebUI"
-                cleanUrl.contains("i2p-project") -> "I2P Project Homepage"
-                cleanUrl.contains("anon.chat") -> "AnonIRC Relay Chat"
-                cleanUrl.contains("wiki.leaks") -> "Invisible Cryptic Wiki"
-                cleanUrl.contains("secure.mail") -> "Garlic Mail Service"
-                cleanUrl.contains("forum.feed") -> "Hidden Forum Feed"
-                cleanUrl.contains("darkbert.intel") -> "DarkBERT Threat Intelligence"
-                else -> "Crypto Host (HTTP 200)"
-            }
+            val pageTitle = fetchResult.title ?: simulatedPageTitle(cleanUrl)
 
             _browserTab.update {
                 val newHistory = it.history.toMutableList()
@@ -663,7 +694,11 @@ class I2PViewModel @JvmOverloads constructor(
                     history = newHistory,
                     currentHistoryIndex = newHistory.size - 1,
                     pageTitle = pageTitle,
-                    isLoading = false
+                    isLoading = false,
+                    fetchMode = fetchResult.mode,
+                    fetchStatusCode = fetchResult.statusCode,
+                    fetchBodyPreview = fetchResult.bodyPreview,
+                    fetchError = fetchResult.error
                 )
             }
             _accessedNodesHistory.update { history ->
@@ -674,8 +709,26 @@ class I2PViewModel @JvmOverloads constructor(
                     connectionStatus = if (_routerState.value.isRealI2p) "REAL_I2P" else "SIMULATED_PREVIEW"
                 )
             }
-            val routeMode = if (_routerState.value.isRealI2p) "via local SAM/I2P" else "as local simulated preview"
+            val routeMode = when (fetchResult.mode) {
+                I2pFetchMode.REAL_PROXY_OK -> "through local I2P HTTP proxy"
+                I2pFetchMode.PROXY_UNAVAILABLE -> "with simulated fallback because proxy was unavailable"
+                I2pFetchMode.HOST_LOOKUP_FAILED -> "with simulated fallback because lookup failed"
+                I2pFetchMode.SIMULATED_PREVIEW -> "as local simulated preview"
+            }
             repository.addLog("PROXY", "Page loaded: $pageTitle ($cleanUrl) $routeMode in ${routingDelay}ms.", "INFO")
+        }
+    }
+
+    private fun simulatedPageTitle(cleanUrl: String): String {
+        return when {
+            cleanUrl.contains("127.0.0.1:7657") || cleanUrl.contains("localhost:7657") || cleanUrl.contains("router-console") -> "I2P Router Console WebUI"
+            cleanUrl.contains("i2p-project") -> "I2P Project Homepage"
+            cleanUrl.contains("anon.chat") -> "AnonIRC Relay Chat"
+            cleanUrl.contains("wiki.leaks") -> "Invisible Cryptic Wiki"
+            cleanUrl.contains("secure.mail") -> "Garlic Mail Service"
+            cleanUrl.contains("forum.feed") -> "Hidden Forum Feed"
+            cleanUrl.contains("darkbert.intel") -> "DarkBERT Threat Intelligence"
+            else -> "Crypto Host Preview"
         }
     }
 
