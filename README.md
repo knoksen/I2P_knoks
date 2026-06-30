@@ -13,6 +13,7 @@ Current release baseline: `v0.3.0-real-alpha`.
 - Page Inspector v2 for proxy-backed `.i2p` status, headers, redirects, errors, and safe text preview.
 - Local service diagnostics for SAM, HTTP proxy, and router console ports.
 - Router console launch using the configured endpoint.
+- SAM lifecycle uses step-specific timeout handling for connect, HELLO, destination generation, session creation, and name lookup.
 - Non-destructive Room migration from database v4 to v5.
 
 ## Still Lab Or Simulation

@@ -55,6 +55,7 @@ import no.knoksen.i2pbrowser.i2p.RealAlphaReadiness
 import no.knoksen.i2pbrowser.i2p.RealAlphaStatus
 import no.knoksen.i2pbrowser.i2p.SamSessionState
 import no.knoksen.i2pbrowser.i2p.SamSessionStatus
+import no.knoksen.i2pbrowser.i2p.SamTimeoutPolicy
 
 @Composable
 fun RouterScreen(
@@ -602,6 +603,7 @@ fun SamLifecycleCard(
     onClose: () -> Unit,
     onDiagnostics: () -> Unit
 ) {
+    val timeoutPolicy = remember { SamTimeoutPolicy() }
     val stateColor = when (status.state) {
         SamSessionState.READY -> CyberGreen
         SamSessionState.CONNECTING,
@@ -633,11 +635,15 @@ fun SamLifecycleCard(
                 lineHeight = 14.sp
             )
             DiagnosticsServiceRow("SAM State", "${endpointConfig.host}:${endpointConfig.samPort}", status.state == SamSessionState.READY)
+            SamStatusRow("Session Endpoint", "${status.endpointHost ?: endpointConfig.host}:${status.endpointPort ?: endpointConfig.samPort}")
+            SamStatusRow("Connect Timeout", "${timeoutPolicy.connectTimeoutMs}ms")
+            SamStatusRow("Session Create Timeout", "${timeoutPolicy.sessionCreateReadTimeoutMs}ms")
             SamStatusRow("Session ID", status.sessionId ?: "not created")
             SamStatusRow("SAM Version", status.samVersion ?: "unknown")
             SamStatusRow("Public Destination Present", if (status.publicDestination.isNullOrBlank()) "no" else "yes")
             SamStatusRow("Private Material Present", if (status.privateDestinationPresent) "yes" else "no")
             SamStatusRow("Connected", formatTimestamp(status.connectedAtMillis))
+            status.lastFailedStep?.let { SamStatusRow("Last Failed Step", it.name) }
             status.error?.takeIf { it.isNotBlank() }?.let { SamStatusRow("Last Error", it) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(

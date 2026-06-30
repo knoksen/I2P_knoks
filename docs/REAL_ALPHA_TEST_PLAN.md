@@ -42,6 +42,12 @@ If Java/JDK preflight fails, see [Build Toolchain](BUILD_TOOLCHAIN.md). Local re
 | SAM reachable but HELLO fails | SAM port accepts a socket but returns `NOVERSION` or `I2P_ERROR`. | SAM lifecycle shows FAILED with the HELLO error reason. |
 | HELLO OK but SESSION CREATE fails | Router returns OK to HELLO and DEST GENERATE, then SESSION CREATE fails. | SAM lifecycle shows FAILED; router UI does not mark session ready. |
 | SESSION CREATE fallback | Router rejects `i2cp.leaseSetEncType=6,4` but accepts `4`. | SAM lifecycle reaches READY and records compatibility fallback in status/logs. |
+| SAM port reachable but HELLO never replies | Use a test SAM socket that accepts TCP but does not answer HELLO. | SAM lifecycle moves to FAILED with a HELLO timeout message and closes the socket. |
+| HELLO OK but DEST GENERATE never replies | Use a test SAM socket that replies to HELLO only. | SAM lifecycle moves to FAILED with a DEST GENERATE timeout message and closes the socket. |
+| DEST GENERATE OK but SESSION CREATE hangs | Use a test SAM socket that replies to HELLO and DEST GENERATE only. | SAM lifecycle moves to FAILED with a SESSION CREATE timeout message and closes the socket. |
+| User closes/cancels during connect | Start SAM session connect and cancel/close before protocol completion. | Socket is closed and state does not remain CONNECTING. |
+| Reconnect after timeout | Trigger a SAM timeout, fix the router/test socket, then connect again. | New connect attempt can reach READY with a new session ID. |
+| Endpoint change after READY | Reach READY on one endpoint, change SAM endpoint, then connect again. | Previous socket is closed before the new endpoint session is opened. |
 | Close/reconnect session | Connect SAM session, close it, then connect again. | Close shows CLOSED, reconnect can reach READY without leaked socket state. |
 | Java I2P SAM disabled by default | Run Java I2P without enabling SAM. | Diagnostics/SAM lifecycle indicate SAM unavailable or failed; no fake identity appears. |
 | i2pd compatibility path | Test with i2pd and SAM enabled. | HELLO, DEST GENERATE, and SESSION CREATE states are visible; fallback is explicit if used. |
