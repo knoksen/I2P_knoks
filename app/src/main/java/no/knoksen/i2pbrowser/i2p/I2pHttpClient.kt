@@ -36,19 +36,23 @@ data class HttpTransportResponse(
 
 fun interface I2pHttpTransport {
     @Throws(IOException::class)
-    fun execute(url: String, proxyHost: String, proxyPort: Int, timeoutMs: Long): HttpTransportResponse
+    fun execute(url: String): HttpTransportResponse
 }
 
-class OkHttpI2pTransport : I2pHttpTransport {
-    override fun execute(url: String, proxyHost: String, proxyPort: Int, timeoutMs: Long): HttpTransportResponse {
-        val proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort))
-        val client = OkHttpClient.Builder()
-            .proxy(proxy)
-            .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-            .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-            .writeTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-            .followRedirects(false)
-            .build()
+class OkHttpI2pTransport(
+    proxyHost: String = "127.0.0.1",
+    proxyPort: Int = 4444,
+    timeoutMs: Long = 2_500
+) : I2pHttpTransport {
+    private val client = OkHttpClient.Builder()
+        .proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
+        .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+        .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+        .writeTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+        .followRedirects(false)
+        .build()
+
+    override fun execute(url: String): HttpTransportResponse {
         val request = Request.Builder().url(url).get().build()
         client.newCall(request).execute().use { response ->
             return HttpTransportResponse(
@@ -60,10 +64,10 @@ class OkHttpI2pTransport : I2pHttpTransport {
 }
 
 open class I2pHttpClient(
-    private val transport: I2pHttpTransport = OkHttpI2pTransport(),
     private val proxyHost: String = "127.0.0.1",
     private val proxyPort: Int = 4444,
-    private val timeoutMs: Long = 2_500
+    private val timeoutMs: Long = 2_500,
+    private val transport: I2pHttpTransport = OkHttpI2pTransport(proxyHost, proxyPort, timeoutMs)
 ) {
     open suspend fun fetch(url: String): I2pFetchResult {
         val normalizedUrl = normalizeUrl(url)
@@ -77,7 +81,7 @@ open class I2pHttpClient(
 
         return withContext(Dispatchers.IO) {
             try {
-                val response = transport.execute(normalizedUrl, proxyHost, proxyPort, timeoutMs)
+                val response = transport.execute(normalizedUrl)
                 I2pFetchResult(
                     mode = I2pFetchMode.REAL_PROXY_OK,
                     url = normalizedUrl,

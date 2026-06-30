@@ -20,7 +20,7 @@ class I2pHttpClientTest {
     @Test
     fun `non i2p url returns simulated preview without transport`() = runTest {
         val client = I2pHttpClient(
-            transport = { _, _, _, _ -> error("Transport should not run for non-.i2p URLs") }
+            transport = { _ -> error("Transport should not run for non-.i2p URLs") }
         )
 
         val result = client.fetch("https://example.com")
@@ -32,7 +32,7 @@ class I2pHttpClientTest {
     @Test
     fun `proxy connection failure returns proxy unavailable`() = runTest {
         val client = I2pHttpClient(
-            transport = { _, _, _, _ -> throw ConnectException("Connection refused") }
+            transport = { _ -> throw ConnectException("Connection refused") }
         )
 
         val result = client.fetch("http://i2p-project.i2p")
@@ -45,7 +45,7 @@ class I2pHttpClientTest {
     @Test
     fun `successful proxy response returns status title and preview`() = runTest {
         val client = I2pHttpClient(
-            transport = { _, _, _, _ ->
+            transport = { _ ->
                 HttpTransportResponse(
                     statusCode = 200,
                     body = "<html><head><title>I2P Project</title></head><body>Hello from eepsite</body></html>"

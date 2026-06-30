@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import no.knoksen.i2pbrowser.data.*
+import no.knoksen.i2pbrowser.i2p.I2pDiagnosticsClient
+import no.knoksen.i2pbrowser.i2p.I2pDiagnosticsResult
 import no.knoksen.i2pbrowser.i2p.I2pFetchMode
 import no.knoksen.i2pbrowser.i2p.I2pHttpClient
 import no.knoksen.i2pbrowser.i2p.SamBridgeClient
@@ -131,6 +133,7 @@ class I2PViewModel @JvmOverloads constructor(
     application: Application,
     private val samBridgeClient: SamBridgeClient = SamBridgeClient(),
     private val i2pHttpClient: I2pHttpClient = I2pHttpClient(),
+    private val diagnosticsClient: I2pDiagnosticsClient = I2pDiagnosticsClient(),
     private val routerAnimationDelayScale: Float = 1f
 ) : AndroidViewModel(application) {
 
@@ -168,6 +171,12 @@ class I2PViewModel @JvmOverloads constructor(
 
     private val _browserTab = MutableStateFlow(BrowserTab())
     val browserTab: StateFlow<BrowserTab> = _browserTab.asStateFlow()
+
+    private val _diagnosticsResult = MutableStateFlow<I2pDiagnosticsResult?>(null)
+    val diagnosticsResult: StateFlow<I2pDiagnosticsResult?> = _diagnosticsResult.asStateFlow()
+
+    private val _isRunningDiagnostics = MutableStateFlow(false)
+    val isRunningDiagnostics: StateFlow<Boolean> = _isRunningDiagnostics.asStateFlow()
 
     private val _activeIdentity = MutableStateFlow<Identity?>(null)
     val activeIdentity: StateFlow<Identity?> = _activeIdentity.asStateFlow()
@@ -473,6 +482,29 @@ class I2PViewModel @JvmOverloads constructor(
         }
     }
 
+    fun runI2pDiagnostics() {
+        if (_isRunningDiagnostics.value) return
+        viewModelScope.launch {
+            runI2pDiagnosticsNow()
+        }
+    }
+
+    private suspend fun runI2pDiagnosticsNow(): I2pDiagnosticsResult {
+        _isRunningDiagnostics.value = true
+        return try {
+            val result = diagnosticsClient.runDiagnostics()
+            _diagnosticsResult.value = result
+            repository.addLog(
+                "DIAGNOSTIC",
+                "I2P local services: SAM=${result.samReachable}, HTTP=${result.httpProxyReachable}, Console=${result.routerConsoleReachable}. ${result.summary}",
+                if (result.httpProxyReachable) "SUCCESS" else "WARN"
+            )
+            result
+        } finally {
+            _isRunningDiagnostics.value = false
+        }
+    }
+
     internal suspend fun connectRouterForTest() {
         if (_routerState.value.isConnected || _routerState.value.isConnecting) return
 
@@ -671,6 +703,9 @@ class I2PViewModel @JvmOverloads constructor(
                     "Using simulated preview renderer for $cleanUrl.",
                     "INFO"
                 )
+            }
+            if (fetchResult.mode == I2pFetchMode.PROXY_UNAVAILABLE || fetchResult.mode == I2pFetchMode.HOST_LOOKUP_FAILED) {
+                runI2pDiagnosticsNow()
             }
 
             // Simulating dynamic latency and garlic routing steps based on active accessories

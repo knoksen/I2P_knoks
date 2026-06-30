@@ -46,6 +46,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
+import no.knoksen.i2pbrowser.i2p.I2pDiagnosticsSummary
 import no.knoksen.i2pbrowser.i2p.I2pFetchMode
 
 @Composable
@@ -347,6 +348,10 @@ fun RouterScreen(
             }
         }
 
+        item {
+            I2pDiagnosticsPanel(viewModel = viewModel)
+        }
+
         // Tunnel Configuration
         item {
             Card(
@@ -547,6 +552,143 @@ fun RouterScreen(
                 LogItemRow(log = log)
             }
         }
+    }
+}
+
+@Composable
+fun I2pDiagnosticsPanel(viewModel: I2PViewModel) {
+    val diagnostics by viewModel.diagnosticsResult.collectAsState()
+    val isRunning by viewModel.isRunningDiagnostics.collectAsState()
+    val summary = diagnostics?.summary ?: I2pDiagnosticsSummary.UNKNOWN_ERROR
+    val summaryColor = when (summary) {
+        I2pDiagnosticsSummary.READY -> CyberGreen
+        I2pDiagnosticsSummary.ROUTER_NOT_RUNNING,
+        I2pDiagnosticsSummary.SAM_DISABLED,
+        I2pDiagnosticsSummary.HTTP_PROXY_DISABLED -> CyberOrange
+        I2pDiagnosticsSummary.PARTIAL_READY -> CyberBlue
+        I2pDiagnosticsSummary.UNKNOWN_ERROR -> TextSecondary
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.dp, CyberBorder),
+        modifier = Modifier.fillMaxWidth().testTag("i2p_diagnostics_panel")
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.NetworkCheck,
+                        contentDescription = null,
+                        tint = summaryColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "I2P LOCAL SERVICES",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = summaryColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Button(
+                    onClick = { viewModel.runI2pDiagnostics() },
+                    enabled = !isRunning,
+                    colors = ButtonDefaults.buttonColors(containerColor = CyberBlue, contentColor = CyberBlack),
+                    shape = RoundedCornerShape(4.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.height(30.dp).testTag("run_i2p_diagnostics_button")
+                ) {
+                    if (isRunning) {
+                        CircularProgressIndicator(color = CyberBlack, modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("RUN CHECK", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Text(
+                diagnostics?.summary?.name ?: "RUN A LOCAL SERVICE CHECK",
+                color = summaryColor,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp
+            )
+
+            DiagnosticsServiceRow("SAM Bridge", "127.0.0.1:7656", diagnostics?.samReachable)
+            DiagnosticsServiceRow("HTTP Proxy", "127.0.0.1:4444", diagnostics?.httpProxyReachable)
+            DiagnosticsServiceRow("Router Console", "127.0.0.1:7657", diagnostics?.routerConsoleReachable)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CyberBlack, RoundedCornerShape(4.dp))
+                    .border(0.5.dp, summaryColor.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+                    .padding(10.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        "HOW TO FIX",
+                        color = CyberBlue,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        diagnostics?.recommendedAction
+                            ?: "Start I2P or i2pd locally, open router console, enable SAM and HTTP proxy / I2PTunnel, then retry.",
+                        color = TextSecondary,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticsServiceRow(
+    label: String,
+    endpoint: String,
+    reachable: Boolean?
+) {
+    val color = when (reachable) {
+        true -> CyberGreen
+        false -> CyberOrange
+        null -> TextSecondary
+    }
+    val status = when (reachable) {
+        true -> "REACHABLE"
+        false -> "UNAVAILABLE"
+        null -> "NOT CHECKED"
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CyberBlack.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(endpoint, color = TextSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        }
+        Text(
+            status,
+            color = color,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace
+        )
     }
 }
 
@@ -1307,6 +1449,10 @@ fun BrowserScreen(
                                 }
                             }
                         }
+                    }
+
+                    item {
+                        I2pDiagnosticsPanel(viewModel = viewModel)
                     }
 
                     // Simulated Page HTML Contents according to current active URL
