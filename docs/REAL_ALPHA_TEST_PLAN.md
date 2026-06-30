@@ -31,6 +31,12 @@ Run before testing:
 | Proxy reachable but host lookup fails | Use HTTP proxy with an unknown `.i2p` hostname. | Browser shows host lookup failure, not a fake success. |
 | Retry after diagnostics | Trigger a proxy failure, run diagnostics, fix router/proxy, tap Retry. | Browser retries the same URL without retyping. |
 | Reset endpoint to local | Change endpoint, then use reset/default. | Active endpoint returns to `127.0.0.1 / 7656 / 4444 / 7657`. |
+| SAM reachable but HELLO fails | SAM port accepts a socket but returns `NOVERSION` or `I2P_ERROR`. | SAM lifecycle shows FAILED with the HELLO error reason. |
+| HELLO OK but SESSION CREATE fails | Router returns OK to HELLO and DEST GENERATE, then SESSION CREATE fails. | SAM lifecycle shows FAILED; router UI does not mark session ready. |
+| SESSION CREATE fallback | Router rejects `i2cp.leaseSetEncType=6,4` but accepts `4`. | SAM lifecycle reaches READY and records compatibility fallback in status/logs. |
+| Close/reconnect session | Connect SAM session, close it, then connect again. | Close shows CLOSED, reconnect can reach READY without leaked socket state. |
+| Java I2P SAM disabled by default | Run Java I2P without enabling SAM. | Diagnostics/SAM lifecycle indicate SAM unavailable or failed; no fake identity appears. |
+| i2pd compatibility path | Test with i2pd and SAM enabled. | HELLO, DEST GENERATE, and SESSION CREATE states are visible; fallback is explicit if used. |
 
 ## Screenshot Checklist
 

@@ -6,6 +6,8 @@ import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.test.runTest
 import no.knoksen.i2pbrowser.i2p.SamBridgeClient
 import no.knoksen.i2pbrowser.i2p.SamBridgeResult
+import no.knoksen.i2pbrowser.i2p.SamConnection
+import no.knoksen.i2pbrowser.i2p.SamProtocolReply
 import no.knoksen.i2pbrowser.ui.I2PViewModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -94,4 +96,19 @@ private class FakeSamBridgeClient(
   private val result: SamBridgeResult?
 ) : SamBridgeClient() {
   override suspend fun connect(host: String, port: Int, timeoutMs: Int): SamBridgeResult? = result
+  override fun openControlSocket(host: String, port: Int, timeoutMs: Int): SamConnection = FakeSamConnection()
+  override fun hello(connection: SamConnection): SamProtocolReply {
+    return if (result == null) {
+      SamProtocolReply("HELLO REPLY RESULT=I2P_ERROR MESSAGE=SAM disabled", "I2P_ERROR", message = "SAM disabled")
+    } else {
+      SamProtocolReply("HELLO REPLY RESULT=OK VERSION=3.1", "OK", version = "3.1")
+    }
+  }
+  override fun generateDestination(connection: SamConnection): SamProtocolReply {
+    val destination = result?.destination.orEmpty()
+    return SamProtocolReply("DEST REPLY RESULT=OK PUB=$destination PRIV=private", "OK", publicDestination = destination, privateDestination = "private")
+  }
+  override fun createStreamSession(connection: SamConnection, sessionId: String, destination: String, leaseSetEncType: String): SamProtocolReply {
+    return SamProtocolReply("SESSION STATUS RESULT=OK", "OK")
+  }
 }

@@ -87,6 +87,10 @@ Real:
 - SAM bridge detection/session work
 - HTTP proxy `.i2p` page inspection
 
+In active development:
+
+- SAM lifecycle hardening with explicit HELLO, destination generation, STREAM session creation, close/reconnect, and failure states.
+
 Not real yet:
 
 - Full WebView browsing

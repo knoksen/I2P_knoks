@@ -52,6 +52,8 @@ import no.knoksen.i2pbrowser.i2p.I2pEndpointConfig
 import no.knoksen.i2pbrowser.i2p.I2pFetchMode
 import no.knoksen.i2pbrowser.i2p.RealAlphaReadiness
 import no.knoksen.i2pbrowser.i2p.RealAlphaStatus
+import no.knoksen.i2pbrowser.i2p.SamSessionState
+import no.knoksen.i2pbrowser.i2p.SamSessionStatus
 
 @Composable
 fun RouterScreen(
@@ -64,6 +66,7 @@ fun RouterScreen(
     val appMode by viewModel.appExperienceMode.collectAsState()
     val endpointValidation by viewModel.endpointValidationResult.collectAsState()
     val realAlphaStatus by viewModel.realAlphaStatus.collectAsState()
+    val samSessionStatus by viewModel.samSessionStatus.collectAsState()
     val scope = rememberCoroutineScope()
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -357,6 +360,16 @@ fun RouterScreen(
         }
 
         item {
+            SamLifecycleCard(
+                endpointConfig = endpointConfig,
+                status = samSessionStatus,
+                onConnect = { viewModel.connectSamSession() },
+                onClose = { viewModel.closeSamSession() },
+                onDiagnostics = { viewModel.runI2pDiagnostics() }
+            )
+        }
+
+        item {
             I2pEndpointSetupCard(
                 endpointConfig = endpointConfig,
                 validationError = endpointValidation.errorText,
@@ -577,6 +590,98 @@ fun RouterScreen(
                 LogItemRow(log = log)
             }
         }
+    }
+}
+
+@Composable
+fun SamLifecycleCard(
+    endpointConfig: I2pEndpointConfig,
+    status: SamSessionStatus,
+    onConnect: () -> Unit,
+    onClose: () -> Unit,
+    onDiagnostics: () -> Unit
+) {
+    val stateColor = when (status.state) {
+        SamSessionState.READY -> CyberGreen
+        SamSessionState.CONNECTING,
+        SamSessionState.HELLO_OK,
+        SamSessionState.DESTINATION_GENERATED,
+        SamSessionState.SESSION_CREATED -> CyberBlue
+        SamSessionState.FAILED -> CyberOrange
+        SamSessionState.DISCONNECTED,
+        SamSessionState.CLOSED -> TextSecondary
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.dp, stateColor.copy(alpha = 0.7f)),
+        modifier = Modifier.fillMaxWidth().testTag("sam_lifecycle_card")
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.AccountTree, contentDescription = null, tint = stateColor, modifier = Modifier.size(16.dp))
+                Text("SAM LIFECYCLE", color = stateColor, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            }
+            Text(
+                "SAM bridge reachable means the port answered. SAM session ready means HELLO + DEST GENERATE + SESSION CREATE succeeded.",
+                color = TextSecondary,
+                fontSize = 10.sp,
+                lineHeight = 14.sp
+            )
+            DiagnosticsServiceRow("SAM State", "${endpointConfig.host}:${endpointConfig.samPort}", status.state == SamSessionState.READY)
+            SamStatusRow("Session ID", status.sessionId ?: "not created")
+            SamStatusRow("SAM Version", status.samVersion ?: "unknown")
+            SamStatusRow("Destination Present", if (status.publicDestination.isNullOrBlank()) "no" else "yes")
+            SamStatusRow("Connected", formatTimestamp(status.connectedAtMillis))
+            status.error?.takeIf { it.isNotBlank() }?.let { SamStatusRow("Last Error", it) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onConnect,
+                    enabled = status.state != SamSessionState.CONNECTING,
+                    colors = ButtonDefaults.buttonColors(containerColor = CyberGreen, contentColor = CyberBlack),
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier.weight(1f).testTag("connect_sam_session_button")
+                ) {
+                    Text("CONNECT SAM", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+                OutlinedButton(
+                    onClick = onClose,
+                    border = BorderStroke(1.dp, CyberOrange),
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier.weight(1f).testTag("close_sam_session_button")
+                ) {
+                    Text("CLOSE SAM", fontSize = 10.sp, color = CyberOrange, fontWeight = FontWeight.Bold)
+                }
+                OutlinedButton(
+                    onClick = onDiagnostics,
+                    border = BorderStroke(1.dp, CyberBlue),
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier.weight(1f).testTag("sam_run_diagnostics_button")
+                ) {
+                    Text("DIAGNOSTICS", fontSize = 10.sp, color = CyberBlue, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SamStatusRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = TextSecondary, fontSize = 10.sp)
+        Text(
+            value,
+            color = TextPrimary,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.End
+        )
     }
 }
 

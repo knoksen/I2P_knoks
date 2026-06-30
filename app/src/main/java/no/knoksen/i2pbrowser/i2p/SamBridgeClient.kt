@@ -12,8 +12,23 @@ import java.net.Socket
 data class SamBridgeResult(
     val destination: String,
     val helloReply: String,
-    val sessionReply: String
+    val sessionReply: String,
+    val samVersion: String? = null,
+    val compatibilityFallbackUsed: Boolean = false
 )
+
+data class SamProtocolReply(
+    val raw: String,
+    val result: String?,
+    val version: String? = null,
+    val destination: String? = null,
+    val publicDestination: String? = null,
+    val privateDestination: String? = null,
+    val value: String? = null,
+    val message: String? = null
+) {
+    val isOk: Boolean = result == "OK"
+}
 
 interface SamConnection : Closeable {
     fun writeLine(line: String)
@@ -49,26 +64,66 @@ open class SamBridgeClient(
 ) : Closeable {
     private var activeConnection: SamConnection? = null
 
+    open fun openControlSocket(host: String, port: Int, timeoutMs: Int = 2_000): SamConnection {
+        return connectionFactory.connect(host, port, timeoutMs)
+    }
+
+    open fun hello(connection: SamConnection): SamProtocolReply {
+        connection.writeLine("HELLO VERSION MIN=3.1 MAX=3.1")
+        return parseSamReply(connection.readLine().orEmpty())
+    }
+
+    open fun generateDestination(connection: SamConnection): SamProtocolReply {
+        connection.writeLine("DEST GENERATE SIGNATURE_TYPE=7")
+        return parseSamReply(connection.readLine().orEmpty())
+    }
+
+    open fun createStreamSession(
+        connection: SamConnection,
+        sessionId: String,
+        destination: String,
+        leaseSetEncType: String = "6,4"
+    ): SamProtocolReply {
+        connection.writeLine(
+            "SESSION CREATE STYLE=STREAM ID=$sessionId DESTINATION=$destination i2cp.leaseSetEncType=$leaseSetEncType"
+        )
+        return parseSamReply(connection.readLine().orEmpty())
+    }
+
+    open fun nameLookup(connection: SamConnection, name: String): SamProtocolReply {
+        connection.writeLine("NAMING LOOKUP NAME=$name")
+        return parseSamReply(connection.readLine().orEmpty())
+    }
+
     open suspend fun connect(host: String, port: Int, timeoutMs: Int = 2_000): SamBridgeResult? {
         return withContext(Dispatchers.IO) {
             var connection: SamConnection? = null
             try {
-                connection = connectionFactory.connect(host, port, timeoutMs)
-                connection.writeLine("HELLO VERSION MIN=3.0 MAX=3.1")
-                val helloLine = connection.readLine().orEmpty()
-                if (!helloLine.isSuccessfulSamReply("HELLO REPLY")) {
+                connection = openControlSocket(host, port, timeoutMs)
+                val helloReply = hello(connection)
+                if (!helloReply.isOk) {
                     connection.close()
                     return@withContext null
                 }
 
-                connection.writeLine("SESSION CREATE STYLE=STREAM ID=I2P_KNOKS_SESSION DESTINATION=TRANSIENT")
-                val sessionLine = connection.readLine().orEmpty()
-                if (!sessionLine.isSuccessfulSamReply("SESSION STATUS")) {
+                val generated = generateDestination(connection)
+                val privateDestination = generated.privateDestination ?: generated.destination
+                val publicDestination = generated.publicDestination ?: generated.destination
+                if (!generated.isOk || privateDestination.isNullOrBlank() || publicDestination.isNullOrBlank()) {
                     connection.close()
                     return@withContext null
                 }
 
-                val destination = sessionLine.samValue("DESTINATION") ?: run {
+                var compatibilityFallbackUsed = false
+                var sessionReply = createStreamSession(connection, DEFAULT_SESSION_ID, privateDestination, "6,4")
+                if (!sessionReply.isOk) {
+                    val fallbackReply = createStreamSession(connection, DEFAULT_SESSION_ID, privateDestination, "4")
+                    if (fallbackReply.isOk) {
+                        compatibilityFallbackUsed = true
+                        sessionReply = fallbackReply
+                    }
+                }
+                if (!sessionReply.isOk) {
                     connection.close()
                     return@withContext null
                 }
@@ -76,9 +131,11 @@ open class SamBridgeClient(
                 activeConnection?.close()
                 activeConnection = connection
                 SamBridgeResult(
-                    destination = destination,
-                    helloReply = helloLine,
-                    sessionReply = sessionLine
+                    destination = publicDestination,
+                    helloReply = helloReply.raw,
+                    sessionReply = sessionReply.raw,
+                    samVersion = helloReply.version,
+                    compatibilityFallbackUsed = compatibilityFallbackUsed
                 )
             } catch (_: Exception) {
                 try {
@@ -99,10 +156,9 @@ open class SamBridgeClient(
         val connection = activeConnection ?: return null
         return withContext(Dispatchers.IO) {
             try {
-                connection.writeLine("NAMELOOKUP NAME=$name")
-                val response = connection.readLine().orEmpty()
-                if (response.isSuccessfulSamReply("NAMELOOKUP REPLY")) {
-                    response.samValue("VALUE")
+                val response = nameLookup(connection, name)
+                if (response.isOk) {
+                    response.value ?: response.destination
                 } else {
                     null
                 }
@@ -121,6 +177,23 @@ open class SamBridgeClient(
             activeConnection = null
         }
     }
+
+    companion object {
+        const val DEFAULT_SESSION_ID = "I2P_KNOKS_SESSION"
+
+        fun parseSamReply(line: String): SamProtocolReply {
+            return SamProtocolReply(
+                raw = line,
+                result = line.samValue("RESULT"),
+                version = line.samValue("VERSION"),
+                destination = line.samValue("DESTINATION"),
+                publicDestination = line.samValue("PUB"),
+                privateDestination = line.samValue("PRIV"),
+                value = line.samValue("VALUE"),
+                message = line.samMessageValue()
+            )
+        }
+    }
 }
 
 internal fun String.isSuccessfulSamReply(prefix: String): Boolean {
@@ -134,4 +207,11 @@ internal fun String.samValue(key: String): String? {
     val valueStart = start + marker.length
     val valueEnd = indexOf(' ', valueStart).let { if (it == -1) length else it }
     return substring(valueStart, valueEnd).trim().takeIf { it.isNotEmpty() }
+}
+
+internal fun String.samMessageValue(): String? {
+    val marker = "MESSAGE="
+    val start = indexOf(marker)
+    if (start == -1) return null
+    return substring(start + marker.length).trim().takeIf { it.isNotEmpty() }
 }

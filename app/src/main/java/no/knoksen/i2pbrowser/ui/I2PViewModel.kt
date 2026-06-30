@@ -13,7 +13,11 @@ import no.knoksen.i2pbrowser.i2p.I2pEndpointValidationResult
 import no.knoksen.i2pbrowser.i2p.I2pFetchMode
 import no.knoksen.i2pbrowser.i2p.I2pHttpClient
 import no.knoksen.i2pbrowser.i2p.RealAlphaStatus
+import no.knoksen.i2pbrowser.i2p.SamNameLookupMode
 import no.knoksen.i2pbrowser.i2p.SamBridgeClient
+import no.knoksen.i2pbrowser.i2p.SamSessionManager
+import no.knoksen.i2pbrowser.i2p.SamSessionState
+import no.knoksen.i2pbrowser.i2p.SamSessionStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -139,6 +143,7 @@ class I2PViewModel @JvmOverloads constructor(
     private val samBridgeClient: SamBridgeClient = SamBridgeClient(),
     private val i2pHttpClient: I2pHttpClient? = null,
     private val diagnosticsClient: I2pDiagnosticsClient = I2pDiagnosticsClient(),
+    private val samSessionManager: SamSessionManager = SamSessionManager(samBridgeClient),
     private val routerAnimationDelayScale: Float = 1f
 ) : AndroidViewModel(application) {
 
@@ -192,6 +197,8 @@ class I2PViewModel @JvmOverloads constructor(
 
     private val _isRunningDiagnostics = MutableStateFlow(false)
     val isRunningDiagnostics: StateFlow<Boolean> = _isRunningDiagnostics.asStateFlow()
+
+    val samSessionStatus: StateFlow<SamSessionStatus> = samSessionManager.status
 
     private val _endpointValidationResult = MutableStateFlow(I2pEndpointValidationResult(emptyList()))
     val endpointValidationResult: StateFlow<I2pEndpointValidationResult> = _endpointValidationResult.asStateFlow()
@@ -273,7 +280,8 @@ class I2PViewModel @JvmOverloads constructor(
     }
 
     suspend fun resolveRealI2pName(name: String): String? {
-        return samBridgeClient.nameLookup(name)
+        val result = samSessionManager.nameLookup(name)
+        return if (result.mode == SamNameLookupMode.FOUND) result.destination else null
     }
 
     fun updateSamConfig(host: String, port: Int) {
@@ -569,6 +577,24 @@ class I2PViewModel @JvmOverloads constructor(
         }
     }
 
+    fun connectSamSession() {
+        viewModelScope.launch {
+            val result = samSessionManager.connect(endpointConfig.value)
+            repository.addLog(
+                "SAM",
+                "SAM session state: ${result.state} at ${endpointConfig.value.host}:${endpointConfig.value.samPort}${result.error?.let { " ($it)" } ?: ""}",
+                if (result.state == SamSessionState.READY) "SUCCESS" else "WARN"
+            )
+        }
+    }
+
+    fun closeSamSession() {
+        viewModelScope.launch {
+            val result = samSessionManager.close()
+            repository.addLog("SAM", "SAM session state: ${result.state}", "INFO")
+        }
+    }
+
     private suspend fun runI2pDiagnosticsNow(): I2pDiagnosticsResult {
         _isRunningDiagnostics.value = true
         return try {
@@ -595,13 +621,13 @@ class I2PViewModel @JvmOverloads constructor(
             _routerState.update { it.copy(isConnecting = true, statusText = "Checking real SAM Bridge on $host:$port...") }
             repository.addLog("ROUTER", "Probing real SAM bridge on $host:$port...", "INFO")
             
-            // Try connecting to real SAM API
-            val samResult = samBridgeClient.connect(endpoint)
-            val realDest = samResult?.destination
+            val samResult = samSessionManager.connect(endpoint)
+            val realDest = samResult.publicDestination
             
-            if (realDest != null) {
+            if (samResult.state == SamSessionState.READY && realDest != null) {
                 _routerState.update { it.copy(connectionProgress = 0.5f, statusText = "SAM v3.1 Handshake OK! Registering local Transient Session...") }
-                repository.addLog("ROUTER", "Real SAM API connected! Handshake OK.", "SUCCESS")
+                repository.addLog("ROUTER", "Real SAM API connected. Session state READY.", "SUCCESS")
+                samResult.error?.let { repository.addLog("SAM", it, "WARN") }
                 routerAnimationDelay(800)
                 
                 _routerState.update { it.copy(connectionProgress = 0.85f, statusText = "Real Session Active. Syncing LeaseSets...") }
@@ -630,8 +656,8 @@ class I2PViewModel @JvmOverloads constructor(
                 val realId = Identity(
                     id = _activeIdentity.value?.id ?: 9999L,
                     name = currentIdName,
-                    publicKeyBase64 = "REAL_SAM_PUBLIC_KEY",
-                    privateKeyBase64 = "REAL_SAM_PRIVATE_KEY",
+                    publicKeyBase64 = realDest,
+                    privateKeyBase64 = "",
                     i2pAddress = shortenedAddress,
                     fullDestination = realDest
                 )
@@ -640,7 +666,7 @@ class I2PViewModel @JvmOverloads constructor(
                 repository.addLog("ROUTER", "I2P Garlic Router fully connected via real SAM API. Address: $shortenedAddress", "SUCCESS")
                 _networkAlerts.tryEmit("[I2P SYSTEM] Connected to REAL I2P network!")
             } else {
-                repository.addLog("ROUTER", "No local SAM Bridge active on $host:$port. Falling back to local simulation mode.", "INFO")
+                repository.addLog("ROUTER", "SAM session did not become ready on $host:$port: ${samResult.error ?: samResult.state}. Falling back to local simulation mode.", "INFO")
                 _routerState.update { it.copy(connectionProgress = 0.15f, statusText = "Initializing local I2P preview simulator...") }
                 repository.addLog("ROUTER", "Starting simulated I2P console preview. No real traffic is routed.", "INFO")
                 routerAnimationDelay(1000)
@@ -685,6 +711,7 @@ class I2PViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 try {
+                    samSessionManager.close()
                     samBridgeClient.close()
                 } catch (e: Exception) {}
             }
