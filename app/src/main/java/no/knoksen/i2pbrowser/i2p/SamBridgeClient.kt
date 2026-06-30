@@ -1,6 +1,7 @@
 package no.knoksen.i2pbrowser.i2p
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.Closeable
@@ -37,6 +38,7 @@ data class SamProtocolReply(
 interface SamConnection : Closeable {
     fun writeLine(line: String)
     fun readLine(): String?
+    fun setReadTimeout(timeoutMs: Int)
 }
 
 fun interface SamConnectionFactory {
@@ -53,6 +55,10 @@ class SocketSamConnection(private val socket: Socket) : SamConnection {
     }
 
     override fun readLine(): String? = reader.readLine()
+
+    override fun setReadTimeout(timeoutMs: Int) {
+        socket.soTimeout = timeoutMs
+    }
 
     override fun close() {
         socket.close()
@@ -100,16 +106,22 @@ open class SamBridgeClient(
     }
 
     open suspend fun connect(host: String, port: Int, timeoutMs: Int = 2_000): SamBridgeResult? {
+        return connect(host, port, SamTimeoutPolicy(connectTimeoutMs = timeoutMs))
+    }
+
+    open suspend fun connect(host: String, port: Int, timeoutPolicy: SamTimeoutPolicy): SamBridgeResult? {
         return withContext(Dispatchers.IO) {
             var connection: SamConnection? = null
             try {
-                connection = openControlSocket(host, port, timeoutMs)
+                connection = openControlSocket(host, port, timeoutPolicy.connectTimeoutMs)
+                connection.setReadTimeout(timeoutPolicy.helloReadTimeoutMs)
                 val helloReply = hello(connection)
                 if (!helloReply.isOk) {
                     connection.close()
                     return@withContext null
                 }
 
+                connection.setReadTimeout(timeoutPolicy.destinationReadTimeoutMs)
                 val generated = generateDestination(connection)
                 val privateDestination = generated.privateDestination ?: generated.destination
                 val publicDestination = generated.publicDestination ?: generated.destination
@@ -120,8 +132,10 @@ open class SamBridgeClient(
 
                 var compatibilityFallbackUsed = false
                 val sessionId = newSessionId()
+                connection.setReadTimeout(timeoutPolicy.sessionCreateReadTimeoutMs)
                 var sessionReply = createStreamSession(connection, sessionId, privateDestination, "6,4")
                 if (!sessionReply.isOk && shouldRetryLeaseSetFallback(sessionReply)) {
+                    connection.setReadTimeout(timeoutPolicy.sessionCreateReadTimeoutMs)
                     val fallbackReply = createStreamSession(connection, sessionId, privateDestination, "4")
                     if (fallbackReply.isOk) {
                         compatibilityFallbackUsed = true
@@ -142,6 +156,13 @@ open class SamBridgeClient(
                     samVersion = helloReply.version,
                     compatibilityFallbackUsed = compatibilityFallbackUsed
                 )
+            } catch (e: CancellationException) {
+                try {
+                    connection?.close()
+                } catch (_: Exception) {
+                    // Best effort cleanup.
+                }
+                throw e
             } catch (_: Exception) {
                 try {
                     connection?.close()
@@ -157,16 +178,23 @@ open class SamBridgeClient(
         return connect(config.host, config.samPort, timeoutMs)
     }
 
+    open suspend fun connect(config: I2pEndpointConfig, timeoutPolicy: SamTimeoutPolicy): SamBridgeResult? {
+        return connect(config.host, config.samPort, timeoutPolicy)
+    }
+
     open suspend fun nameLookup(name: String): String? {
         val connection = activeConnection ?: return null
         return withContext(Dispatchers.IO) {
             try {
+                connection.setReadTimeout(SamTimeoutPolicy().nameLookupReadTimeoutMs)
                 val response = nameLookup(connection, name)
                 if (response.isOk) {
                     response.value ?: response.destination
                 } else {
                     null
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 null
             }

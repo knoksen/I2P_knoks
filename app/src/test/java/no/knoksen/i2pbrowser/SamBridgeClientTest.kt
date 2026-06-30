@@ -1,8 +1,10 @@
 package no.knoksen.i2pbrowser
 
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.CancellationException
 import no.knoksen.i2pbrowser.i2p.SamBridgeClient
 import no.knoksen.i2pbrowser.i2p.SamConnection
+import no.knoksen.i2pbrowser.i2p.SamTimeoutPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -92,6 +94,22 @@ class SamBridgeClientTest {
     }
 
     @Test
+    fun `connect cancellation rethrows and closes socket`() = runTest {
+        val connection = CancellingReadSamConnection()
+        val client = SamBridgeClient(connectionFactory = { _, _, _ -> connection })
+        var cancelled = false
+
+        try {
+            client.connect("127.0.0.1", 7656)
+        } catch (_: CancellationException) {
+            cancelled = true
+        }
+
+        assertTrue(cancelled)
+        assertTrue(connection.closed)
+    }
+
+    @Test
     fun `missing destination falls back to null`() = runTest {
         val client = SamBridgeClient(
             connectionFactory = { _, _, _ ->
@@ -126,17 +144,68 @@ class SamBridgeClientTest {
     }
 
     @Test
+    fun `connect applies split SAM timeout policy`() = runTest {
+        val connection = FakeSamConnection(
+            "HELLO REPLY RESULT=OK VERSION=3.1",
+            "DEST REPLY PUB=publicDest PRIV=privateDest",
+            "SESSION STATUS RESULT=OK"
+        )
+        var connectTimeout = 0
+        val client = SamBridgeClient(connectionFactory = { _, _, timeoutMs ->
+            connectTimeout = timeoutMs
+            connection
+        })
+
+        client.connect(
+            "127.0.0.1",
+            7656,
+            SamTimeoutPolicy(
+                connectTimeoutMs = 111,
+                helloReadTimeoutMs = 222,
+                destinationReadTimeoutMs = 333,
+                sessionCreateReadTimeoutMs = 444
+            )
+        )
+
+        assertEquals(111, connectTimeout)
+        assertEquals(listOf(222, 333, 444), connection.readTimeouts)
+    }
+
+    @Test
     fun `generated session id contains no whitespace`() {
         val sessionId = SamBridgeClient.newSessionId()
 
         assertTrue(sessionId.startsWith(SamBridgeClient.SESSION_ID_PREFIX))
         assertEquals(false, sessionId.any { it.isWhitespace() })
     }
+
+    @Test
+    fun `name lookup cancellation rethrows`() = runTest {
+        val connection = FakeSamConnection(
+            "HELLO REPLY RESULT=OK VERSION=3.1",
+            "DEST REPLY PUB=publicDest PRIV=privateDest",
+            "SESSION STATUS RESULT=OK"
+        )
+        val client = object : SamBridgeClient(connectionFactory = { _, _, _ -> connection }) {
+            override fun nameLookup(connection: SamConnection, name: String) = throw CancellationException("lookup cancelled")
+        }
+        client.connect("127.0.0.1", 7656)
+        var cancelled = false
+
+        try {
+            client.nameLookup("site.i2p")
+        } catch (_: CancellationException) {
+            cancelled = true
+        }
+
+        assertTrue(cancelled)
+    }
 }
 
-class FakeSamConnection(vararg replies: String) : SamConnection {
+private class FakeSamConnection(vararg replies: String) : SamConnection {
     private val remainingReplies = ArrayDeque(replies.toList())
     val writes = mutableListOf<String>()
+    val readTimeouts = mutableListOf<Int>()
     var closed = false
 
     override fun writeLine(line: String) {
@@ -145,6 +214,21 @@ class FakeSamConnection(vararg replies: String) : SamConnection {
 
     override fun readLine(): String? = remainingReplies.removeFirstOrNull()
 
+    override fun setReadTimeout(timeoutMs: Int) {
+        readTimeouts += timeoutMs
+    }
+
+    override fun close() {
+        closed = true
+    }
+}
+
+private class CancellingReadSamConnection : SamConnection {
+    var closed = false
+
+    override fun writeLine(line: String) = Unit
+    override fun readLine(): String? = throw CancellationException("cancelled")
+    override fun setReadTimeout(timeoutMs: Int) = Unit
     override fun close() {
         closed = true
     }

@@ -96,7 +96,7 @@ private class FakeSamBridgeClient(
   private val result: SamBridgeResult?
 ) : SamBridgeClient() {
   override suspend fun connect(host: String, port: Int, timeoutMs: Int): SamBridgeResult? = result
-  override fun openControlSocket(host: String, port: Int, timeoutMs: Int): SamConnection = FakeSamConnection()
+  override fun openControlSocket(host: String, port: Int, timeoutMs: Int): SamConnection = RobolectricFakeSamConnection()
   override fun hello(connection: SamConnection): SamProtocolReply {
     return if (result == null) {
       SamProtocolReply("HELLO REPLY RESULT=I2P_ERROR MESSAGE=SAM disabled", "I2P_ERROR", message = "SAM disabled")
@@ -111,4 +111,11 @@ private class FakeSamBridgeClient(
   override fun createStreamSession(connection: SamConnection, sessionId: String, destination: String, leaseSetEncType: String): SamProtocolReply {
     return SamProtocolReply("SESSION STATUS RESULT=OK", "OK")
   }
+}
+
+private class RobolectricFakeSamConnection : SamConnection {
+  override fun writeLine(line: String) = Unit
+  override fun readLine(): String? = null
+  override fun setReadTimeout(timeoutMs: Int) = Unit
+  override fun close() = Unit
 }
