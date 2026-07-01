@@ -70,6 +70,7 @@ If the release includes device-test docs or networking changes:
 - [ ] Tag pushed
 - [ ] GitHub Actions run checked
 - [ ] Debug APK artifact downloaded or linked from the workflow run
+- [ ] SHA-256 checksum verified against `i2p-knoks-debug-apk-sha256` artifact
 - [ ] GitHub Release created
 - [ ] Release notes include `Real`, `Still LAB`, `Known Limits`, and `Non-goals`
 
@@ -92,6 +93,8 @@ The Android workflow artifact contract is:
 
 - Artifact name: `i2p-knoks-debug-apk`
 - Artifact path: `app/build/outputs/apk/debug/*.apk`
+- Checksum artifact name: `i2p-knoks-debug-apk-sha256`
+- Checksum file: `app-debug.apk.sha256` (SHA-256, `sha256sum` format)
 - Build type: debug
 - Intended use: real-alpha testing only
 - Not production signed
@@ -108,18 +111,55 @@ Use the workflow run for the intended commit or tag:
 1. Open the repository Actions tab.
 2. Select the Android workflow run for the release commit/tag.
 3. Confirm the run completed successfully.
-4. Confirm the step summary names `i2p-knoks-debug-apk`.
+4. Confirm the step summary names `i2p-knoks-debug-apk` and shows the SHA-256 checksum.
 5. Download the debug APK artifact.
-6. Confirm the artifact contains the debug APK from `app/build/outputs/apk/debug/*.apk`.
-7. Install it on an emulator or test device.
-8. Run the real-alpha smoke checks.
+6. Download the `i2p-knoks-debug-apk-sha256` artifact.
+7. Verify the checksum matches (see APK Checksum Verification below).
+8. Confirm the artifact contains the debug APK from `app/build/outputs/apk/debug/*.apk`.
+9. Install it on an emulator or test device.
+10. Run the real-alpha smoke checks.
+
+## APK Checksum Verification
+
+After downloading both `i2p-knoks-debug-apk` and `i2p-knoks-debug-apk-sha256` artifacts:
+
+**Linux / macOS:**
+
+```sh
+sha256sum -c app-debug.apk.sha256
+```
+
+A passing result prints:
+
+```
+app-debug.apk: OK
+```
+
+**Windows (PowerShell):**
+
+```powershell
+$expected = (Get-Content app-debug.apk.sha256 -Raw).Split(' ')[0].ToUpper()
+$actual = (Get-FileHash app-debug.apk -Algorithm SHA256).Hash
+if ($expected -eq $actual) {
+    "OK: $actual"
+} else {
+    "MISMATCH"
+    "Expected: $expected"
+    "Actual:   $actual"
+}
+```
+
+If the hashes do not match, do not install or distribute the APK.
 
 ## APK Artifact Checklist
 
 - [ ] Workflow run belongs to expected commit
 - [ ] Workflow run completed successfully
 - [ ] Step summary describes real-alpha debug APK use
+- [ ] Step summary shows SHA-256 checksum
 - [ ] Artifact name is `i2p-knoks-debug-apk`
+- [ ] Checksum artifact name is `i2p-knoks-debug-apk-sha256`
+- [ ] SHA-256 checksum verified (see APK Checksum Verification)
 - [ ] Artifact contains `app/build/outputs/apk/debug/*.apk`
 - [ ] APK installed on emulator or test device
 - [ ] App opens
@@ -148,8 +188,10 @@ The workflow:
 2. Runs the release-facing claim check.
 3. Runs `testDebugUnitTest`.
 4. Runs `assembleDebug`.
-5. Uploads the debug APK artifact as `i2p-knoks-debug-apk`.
-6. Creates a draft GitHub Release and attaches the debug APK.
+5. Generates a SHA-256 checksum for the debug APK.
+6. Uploads the debug APK artifact as `i2p-knoks-debug-apk`.
+7. Uploads the checksum artifact as `i2p-knoks-debug-apk-sha256`.
+8. Creates a draft GitHub Release and attaches the debug APK and checksum file.
 
 The workflow does not perform production signing or Play Store publishing.
 
@@ -250,6 +292,7 @@ If a release is bad:
 - [ ] Tag pushed
 - [ ] GitHub Actions successful for intended commit/tag
 - [ ] Debug APK artifact verified
+- [ ] SHA-256 checksum verified against `i2p-knoks-debug-apk-sha256` artifact
 - [ ] Known limits included in notes
 - [ ] Non-goals included in notes
 - [ ] Real-device/emulator signoff completed when applicable
