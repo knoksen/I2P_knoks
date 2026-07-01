@@ -50,6 +50,11 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew assembleDebug
 
+      - name: Generate SHA-256 checksum for debug APK
+        run: |
+          sha256sum app/build/outputs/apk/debug/*.apk | tee app/build/outputs/apk/debug/app-debug.apk.sha256
+          echo "APK_SHA256=$(awk '{print $1}' app/build/outputs/apk/debug/app-debug.apk.sha256)" >> "$GITHUB_ENV"
+
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -57,10 +62,18 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
+      - name: Upload debug APK checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: i2p-knoks-debug-apk-sha256
+          path: app/build/outputs/apk/debug/app-debug.apk.sha256
+          if-no-files-found: error
+
       - name: Create release notes
         shell: pwsh
         run: |
-          @'
+          $sha256 = $env:APK_SHA256
+          @"
           # ${{ inputs.title }}
 
           ## Summary
@@ -70,16 +83,34 @@ jobs:
           ## Verification
 
           - Release-facing claim check passed in GitHub Actions.
-          - `testDebugUnitTest` passed in GitHub Actions.
-          - `assembleDebug` passed in GitHub Actions.
+          - ``testDebugUnitTest`` passed in GitHub Actions.
+          - ``assembleDebug`` passed in GitHub Actions.
 
           ## APK Artifact
 
-          - Artifact: `i2p-knoks-debug-apk`
+          - Artifact: ``i2p-knoks-debug-apk``
+          - Checksum artifact: ``i2p-knoks-debug-apk-sha256``
+          - SHA-256: ``$sha256``
           - Build type: debug
           - Intended use: real-alpha testing only
           - Not production signed
           - Not a Play Store release
+
+          ## Checksum Verification
+
+          Download the ``i2p-knoks-debug-apk-sha256`` artifact and run:
+
+          ```
+          sha256sum -c app-debug.apk.sha256
+          ```
+
+          On Windows (PowerShell):
+
+          ```powershell
+          (Get-FileHash app-debug.apk -Algorithm SHA256).Hash
+          ```
+
+          Compare the output against the SHA-256 value listed above.
 
           ## Known Limits
 
@@ -95,7 +126,7 @@ jobs:
           - Production signing
           - Play Store publishing
           - Anonymous browsing guarantees
-          '@ | Set-Content -Path release-notes.md -Encoding utf8
+          "@ | Set-Content -Path release-notes.md -Encoding utf8
 
       - name: Draft GitHub release
         env:
@@ -104,6 +135,7 @@ jobs:
           release_args=(
             "${{ inputs.tag }}"
             app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/debug/app-debug.apk.sha256
             --title "${{ inputs.title }}"
             --notes-file release-notes.md
             --draft
@@ -123,6 +155,8 @@ jobs:
             echo "- Tag: \`${{ inputs.tag }}\`"
             echo "- Title: \`${{ inputs.title }}\`"
             echo "- Artifact: \`i2p-knoks-debug-apk\`"
+            echo "- Checksum artifact: \`i2p-knoks-debug-apk-sha256\`"
+            echo "- SHA-256: \`${APK_SHA256}\`"
             echo "- Build type: debug"
             echo "- Intended use: real-alpha testing only"
             echo "- Draft release created: yes"

@@ -28,11 +28,23 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew assembleDebug
 
+      - name: Generate SHA-256 checksum for debug APK
+        run: |
+          sha256sum app/build/outputs/apk/debug/*.apk | tee app/build/outputs/apk/debug/app-debug.apk.sha256
+          echo "APK_SHA256=$(awk '{print $1}' app/build/outputs/apk/debug/app-debug.apk.sha256)" >> "$GITHUB_ENV"
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: i2p-knoks-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload debug APK checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: i2p-knoks-debug-apk-sha256
+          path: app/build/outputs/apk/debug/app-debug.apk.sha256
           if-no-files-found: error
 
       - name: Write debug APK summary
@@ -41,12 +53,20 @@ jobs:
             echo "## I2P Knoks Debug APK"
             echo ""
             echo "- Artifact: \`i2p-knoks-debug-apk\`"
+            echo "- Checksum artifact: \`i2p-knoks-debug-apk-sha256\`"
+            echo "- SHA-256: \`${APK_SHA256}\`"
             echo "- Build type: debug"
             echo "- Intended use: real-alpha testing only"
             echo "- Not production signed"
             echo "- Not a Play Store release"
             echo "- Commit: \`${GITHUB_SHA}\`"
             echo "- Ref: \`${GITHUB_REF_NAME}\`"
+            echo ""
+            echo "To verify the downloaded APK, download the \`i2p-knoks-debug-apk-sha256\` artifact and run:"
+            echo ""
+            echo "\`\`\`"
+            echo "sha256sum -c app-debug.apk.sha256"
+            echo "\`\`\`"
             echo ""
             echo "Use this artifact together with docs/REAL_DEVICE_TESTING.md and docs/RELEASE_PROCESS.md."
           } >> "$GITHUB_STEP_SUMMARY"
