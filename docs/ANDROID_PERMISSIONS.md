@@ -11,7 +11,6 @@ This file is a release-facing boundary document. It should be updated whenever `
 | Permission | Required By | Why It Exists | What It Enables | What It Does Not Provide |
 | :--- | :--- | :--- | :--- | :--- |
 | `android.permission.INTERNET` | I2P endpoint diagnostics, SAM probing/session work, router console launch intents, and `.i2p` page inspection through the configured HTTP proxy. | The app must open network sockets to the configured local, emulator, or LAN I2P/i2pd services. | Outbound app network access to user-configured endpoints such as SAM, HTTP proxy, and router console addresses. | It does not provide anonymity, full-device routing, OS-level VPN behavior, Tor routing, browser isolation, traffic correlation protection, or an embedded I2P router. |
-| `android.permission.ACCESS_NETWORK_STATE` | Current manifest permission set. No current source usage was found in the real-alpha code path during this review. | Allows future or platform-level checks of Android network connectivity state if needed for diagnostics. It is retained as an existing manifest permission and should be reviewed before release candidates. | Read-only access to coarse device network connectivity state. | It does not open network connections by itself, route traffic, change traffic confidentiality or integrity, provide VPN behavior, prove I2P reachability, or verify SAM/HTTP proxy/router console availability. |
 
 No foreground service, background service, VPN service, storage, location, notification, camera, or microphone permission is requested in the current manifest.
 
