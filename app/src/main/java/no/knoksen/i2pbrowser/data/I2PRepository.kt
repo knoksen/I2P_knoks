@@ -96,10 +96,10 @@ class I2PRepository(
 
     private suspend fun simulateAutoResponse(fromContact: String, toSelf: String) {
         val responseText = when {
-            fromContact.contains("anon.chat") -> "Welcome to the anonymous relay chat room! Ensure your garlic routing tunnels maintain at least 3 hops for solid anonymity."
+            fromContact.contains("anon.chat") -> "Welcome to the local chat preview. This demo response is stored locally and does not prove private routing."
             fromContact.contains("secure.mail") -> "Hello. Demo mailbox preview is active. Real encrypted mail is not implemented yet."
             fromContact.contains("wiki.leaks") -> "Demo endpoint received your preview payload. Use a real crypto backend before sharing sensitive files."
-            else -> "Message acknowledged by cryptographic endpoint. Connection status: Active."
+            else -> "Demo endpoint acknowledged the preview payload. Connection status is simulated."
         }
         
         // Background delay simulator
@@ -186,10 +186,10 @@ class I2PRepository(
     suspend fun seedDefaultsIfNeeded() {
         val defaultBookmarks = listOf(
             Bookmark(title = "I2P Project Homepage", url = "http://i2p-project.i2p", iconName = "language", colorHex = "#00E676"),
-            Bookmark(title = "AnonIRC Relay Chat", url = "http://anon.chat.i2p", iconName = "chat", colorHex = "#D500F9"),
-            Bookmark(title = "Invisible Cryptic Wiki", url = "http://wiki.leaks.i2p", iconName = "description", colorHex = "#FF3D00"),
-            Bookmark(title = "Garlic Mail Service", url = "http://secure.mail.i2p", iconName = "mail", colorHex = "#FFD600"),
-            Bookmark(title = "Hidden Forum Feed", url = "http://forum.feed.i2p", iconName = "forum", colorHex = "#00B0FF"),
+            Bookmark(title = "Sample Chat Preview", url = "http://anon.chat.i2p", iconName = "chat", colorHex = "#D500F9"),
+            Bookmark(title = "Sample Wiki Preview", url = "http://wiki.leaks.i2p", iconName = "description", colorHex = "#FF3D00"),
+            Bookmark(title = "Sample Mail Preview", url = "http://secure.mail.i2p", iconName = "mail", colorHex = "#FFD600"),
+            Bookmark(title = "Forum Feed Preview", url = "http://forum.feed.i2p", iconName = "forum", colorHex = "#00B0FF"),
             Bookmark(title = "DarkBERT Threat Intelligence", url = "http://darkbert.intel.i2p", iconName = "shield", colorHex = "#AA00FF")
         )
 
@@ -197,7 +197,7 @@ class I2PRepository(
         bookmarkDao.getAllBookmarks().collect { list ->
             if (list.isEmpty()) {
                 defaultBookmarks.forEach { bookmarkDao.insertBookmark(it) }
-                addLog("DATABASE", "Seeded default darkweb bookmarks.", "SUCCESS")
+                addLog("DATABASE", "Seeded default I2P preview bookmarks.", "SUCCESS")
             }
         }
 
