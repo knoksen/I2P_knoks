@@ -36,6 +36,8 @@ Current release baseline: `v0.3.0-real-alpha`.
 
 More detail: [Security Boundaries](docs/SECURITY_BOUNDARIES.md).
 
+Current hardening roadmap: [Roadmap](docs/ROADMAP.md).
+
 ## Real Alpha Testing
 
 Use the reproducible test plan before cutting or reviewing alpha releases:
