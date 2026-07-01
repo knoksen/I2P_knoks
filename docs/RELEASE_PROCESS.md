@@ -24,7 +24,7 @@ Use annotated tags. Tag only after `main` verification passes. Do not tag from f
 - Debug APK build must pass.
 - Unit tests must pass.
 - Any networking behavior change should be checked against the real-device/emulator checklist.
-- Release notes must include known limits and explicit non-goals.
+- Release notes must include `Real`, `Still LAB`, `Known Limits`, and `Non-goals` sections.
 
 ## Version / Tag Naming
 
@@ -71,7 +71,7 @@ If the release includes device-test docs or networking changes:
 - [ ] GitHub Actions run checked
 - [ ] Debug APK artifact downloaded or linked from the workflow run
 - [ ] GitHub Release created
-- [ ] Release notes include known limits and explicit non-goals
+- [ ] Release notes include `Real`, `Still LAB`, `Known Limits`, and `Non-goals`
 
 ## Tag Commands
 
@@ -153,6 +153,20 @@ The workflow:
 
 The workflow does not perform production signing or Play Store publishing.
 
+## Release Candidate Readiness Gate
+
+Use the `Release Candidate Readiness Checklist` workflow before publishing a real-alpha release candidate.
+
+The manual gate requires explicit confirmation that:
+
+- Release notes include `Real`, `Still LAB`, `Known Limits`, and `Non-goals`.
+- Release-facing docs are aligned with release notes.
+- APK artifact metadata is aligned with the release contract:
+  - Artifact name: `i2p-knoks-debug-apk`
+  - Artifact path: `app/build/outputs/apk/debug/*.apk`
+  - Build type: debug
+  - Intended use: real-alpha testing only
+
 ## Release Notes Template
 
 ### Summary
@@ -168,6 +182,14 @@ Short one-paragraph summary.
 - ...
 
 ### Fixed
+
+- ...
+
+### Real
+
+- ...
+
+### Still LAB
 
 - ...
 
