@@ -199,6 +199,8 @@ The workflow does not perform production signing or Play Store publishing.
 
 Use [Release Candidate Readiness Checklist](RELEASE_CANDIDATE_CHECKLIST.md) and the `Release Candidate Readiness Checklist` workflow before publishing a real-alpha release candidate.
 
+For CI and local-verification lessons learned during M9.3, see [CI Lessons from M9.3](CI_LESSONS_M9_3.md).
+
 The manual gate requires explicit confirmation that:
 
 - Release notes include `Real`, `Still LAB`, `Known Limits`, and `Non-goals`.

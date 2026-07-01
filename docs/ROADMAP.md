@@ -29,6 +29,7 @@ The project rule remains strict: release-facing behavior and wording must be bac
   - #20 audited `RELEASE_REAL` UI wording.
   - #21 added APK checksum and artifact verification.
   - #18 adds the release candidate readiness checklist and connects the existing manual readiness workflow to it.
+  - #22 documents CI lessons from M9.3, including PowerShell/ripgrep exit handling, JDK baseline alignment, Windows Gradle lock cleanup, and release-claim gate discipline.
 
 ## Next
 
