@@ -99,14 +99,14 @@ data class VpnConfig(
 )
 
 data class VpnState(
-    val selectedVpn: String = "Private VPN (ShadowTunnel)",
+    val selectedVpn: String = "Lab VPN Profile A",
     val status: VpnStatus = VpnStatus.DISCONNECTED,
     val bytesTransmitted: Long = 0,
     val connectedDurationSeconds: Int = 0,
     val availableVpns: List<VpnConfig> = listOf(
-        VpnConfig("Private VPN (ShadowTunnel)", recommended = true, speedRating = "ULTRA (10 Gbps)", securityLevel = "AES-GCM-256 (Quantum Resistant)", pingMs = 12),
-        VpnConfig("Secure Onion Shield", recommended = false, speedRating = "MEDIUM (1 Gbps)", securityLevel = "ChaCha20-Poly1305", pingMs = 45),
-        VpnConfig("Garlic Guard VPN", recommended = false, speedRating = "FAST (5 Gbps)", securityLevel = "AES-256-CBC", pingMs = 28)
+        VpnConfig("Lab VPN Profile A", recommended = true, speedRating = "ULTRA (10 Gbps)", securityLevel = "Sample AES-GCM-256 profile", pingMs = 12),
+        VpnConfig("Lab VPN Profile B", recommended = false, speedRating = "MEDIUM (1 Gbps)", securityLevel = "Sample ChaCha20-Poly1305 profile", pingMs = 45),
+        VpnConfig("Lab VPN Profile C", recommended = false, speedRating = "FAST (5 Gbps)", securityLevel = "Sample AES-256-CBC profile", pingMs = 28)
     )
 )
 
@@ -424,28 +424,28 @@ class I2PViewModel @JvmOverloads constructor(
             it.copy(
                 tunnelHops = 1,
                 latencyMs = Random.nextInt(85, 140),
-                statusText = "Optimized for latency: 1-Hop Tunnel active"
+                statusText = "Latency profile updated: 1-hop path selected"
             )
         }
         viewModelScope.launch {
-            _networkAlerts.tryEmit("[I2P SYSTEM] Fast-Path routing activated. Latency optimized.")
-            repository.addLog("OPTIMIZE", "Lowered tunnel hops to 1. Fast-Path latency optimized.", "SUCCESS")
+            _networkAlerts.tryEmit("[I2P SYSTEM] Low-latency path profile selected.")
+            repository.addLog("OPTIMIZE", "Lowered path hops to 1 for low-latency testing.", "SUCCESS")
         }
     }
 
     fun rebuildTunnelPool() {
         if (!_routerState.value.isConnected) return
         viewModelScope.launch {
-            _routerState.update { it.copy(statusText = "Purging defective nodes & rebuilding tunnels...") }
+            _routerState.update { it.copy(statusText = "Refreshing path metrics and rebuilding the path pool...") }
             delay(800)
             _routerState.update {
                 it.copy(
                     packetLoss = Random.nextFloat() * 0.15f,
-                    statusText = "Tunnel pool rebuilt. Active: ${it.activeTunnels} tunnels."
+                    statusText = "Path pool refreshed. Active paths shown: ${it.activeTunnels}."
                 )
             }
-            _networkAlerts.tryEmit("[I2P SYSTEM] Tunnel pool rebuilt successfully. Defective nodes purged.")
-            repository.addLog("REBUILD", "Purged defective nodes. Packet loss stabilized under 0.15%.", "SUCCESS")
+            _networkAlerts.tryEmit("[I2P SYSTEM] Path pool refresh completed.")
+            repository.addLog("REBUILD", "Path pool refresh completed. Packet loss stabilized under 0.15%.", "SUCCESS")
         }
     }
 
@@ -456,12 +456,12 @@ class I2PViewModel @JvmOverloads constructor(
                 tunnelHops = 3,
                 latencyMs = Random.nextInt(380, 430),
                 packetLoss = Random.nextFloat() * 0.4f,
-                statusText = "Standard balanced 3-hop garlic path restored"
+                statusText = "Balanced 3-hop path restored"
             )
         }
         viewModelScope.launch {
-            _networkAlerts.tryEmit("[I2P SYSTEM] Standard 3-hop garlic routing profile restored.")
-            repository.addLog("STABILIZE", "Standard 3-hop garlic routing path restored. Packet flow balanced.", "SUCCESS")
+            _networkAlerts.tryEmit("[I2P SYSTEM] Balanced 3-hop path profile restored.")
+            repository.addLog("STABILIZE", "Balanced 3-hop path restored for standard routing tests.", "SUCCESS")
         }
     }
 
@@ -626,19 +626,19 @@ class I2PViewModel @JvmOverloads constructor(
             val endpoint = endpointConfig.value
             val host = endpoint.host
             val port = endpoint.samPort
-            _routerState.update { it.copy(isConnecting = true, statusText = "Checking real SAM Bridge on $host:$port...") }
-            repository.addLog("ROUTER", "Probing real SAM bridge on $host:$port...", "INFO")
+            _routerState.update { it.copy(isConnecting = true, statusText = "Checking local SAM bridge on $host:$port...") }
+            repository.addLog("ROUTER", "Probing local SAM bridge on $host:$port...", "INFO")
             
             val samResult = samSessionManager.connect(endpoint)
             val realDest = samResult.publicDestination
             
             if (samResult.state == SamSessionState.READY && realDest != null) {
-                _routerState.update { it.copy(connectionProgress = 0.5f, statusText = "SAM v3.1 Handshake OK! Registering local Transient Session...") }
-                repository.addLog("ROUTER", "Real SAM API connected. Session state READY.", "SUCCESS")
+                _routerState.update { it.copy(connectionProgress = 0.5f, statusText = "SAM v3.1 handshake OK. Registering local transient session...") }
+                repository.addLog("ROUTER", "Local SAM API connected. Session state READY.", "SUCCESS")
                 samResult.error?.let { repository.addLog("SAM", it, "WARN") }
                 routerAnimationDelay(800)
                 
-                _routerState.update { it.copy(connectionProgress = 0.85f, statusText = "Real Session Active. Syncing LeaseSets...") }
+                _routerState.update { it.copy(connectionProgress = 0.85f, statusText = "SAM session active. Syncing local routing data...") }
                 repository.addLog("ROUTER", "Local Transient Destination registered successfully.", "SUCCESS")
                 routerAnimationDelay(600)
                 
@@ -653,7 +653,7 @@ class I2PViewModel @JvmOverloads constructor(
                         realDestination = realDest,
                         activeTunnels = 8,
                         knownPeers = 350,
-                        statusText = "Connected to REAL I2P via SAM API",
+                        statusText = "Connected to local I2P router via SAM",
                         latencyMs = 280,
                         packetLoss = 0.05f,
                         activePeerCount = 12
@@ -671,8 +671,8 @@ class I2PViewModel @JvmOverloads constructor(
                 )
                 _activeIdentity.value = realId
                 
-                repository.addLog("ROUTER", "I2P Garlic Router fully connected via real SAM API. Address: $shortenedAddress", "SUCCESS")
-                _networkAlerts.tryEmit("[I2P SYSTEM] Connected to REAL I2P network!")
+                repository.addLog("ROUTER", "Connected to local I2P router via SAM. Address: $shortenedAddress", "SUCCESS")
+                _networkAlerts.tryEmit("[I2P SYSTEM] Local I2P router session is ready.")
             } else {
                 repository.addLog("ROUTER", "SAM session did not become ready on $host:$port: ${samResult.error ?: samResult.state}. Falling back to local simulation mode.", "INFO")
                 _routerState.update { it.copy(connectionProgress = 0.15f, statusText = "Initializing local I2P preview simulator...") }
@@ -1288,7 +1288,7 @@ class I2PViewModel @JvmOverloads constructor(
         if (currentState.status == VpnStatus.DISCONNECTED) {
             _vpnState.update { it.copy(status = VpnStatus.CONNECTING) }
             viewModelScope.launch {
-                repository.addLog("VPN", "Establishing tunnel connection to ${currentState.selectedVpn}...", "INFO")
+                repository.addLog("VPN", "Starting LAB VPN profile ${currentState.selectedVpn}...", "INFO")
                 delay(1200)
                 _vpnState.update { 
                     it.copy(
@@ -1297,15 +1297,15 @@ class I2PViewModel @JvmOverloads constructor(
                         connectedDurationSeconds = 0
                     ) 
                 }
-                _networkAlerts.tryEmit("[VPN CONNECTED] Secured via ${currentState.selectedVpn}")
-                repository.addLog("VPN", "Secure VPN tunnel established successfully via ${currentState.selectedVpn}.", "SUCCESS")
+                _networkAlerts.tryEmit("[VPN CONNECTED] LAB profile active: ${currentState.selectedVpn}")
+                repository.addLog("VPN", "LAB VPN profile active: ${currentState.selectedVpn}.", "SUCCESS")
                 startVpnStatusSim()
             }
         } else {
             vpnJob?.cancel()
             _vpnState.update { it.copy(status = VpnStatus.DISCONNECTED) }
             viewModelScope.launch {
-                repository.addLog("VPN", "VPN tunnel disconnected.", "WARN")
+                repository.addLog("VPN", "LAB VPN profile stopped.", "WARN")
             }
         }
     }
