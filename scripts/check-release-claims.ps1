@@ -37,3 +37,4 @@ if ($found) {
 }
 
 Write-Host "Release claim check passed." -ForegroundColor Green
+$global:LASTEXITCODE = 0
