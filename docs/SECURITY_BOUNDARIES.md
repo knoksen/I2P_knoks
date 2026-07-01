@@ -25,6 +25,8 @@ It does not mean the app provides anonymity by itself.
 
 Real I2P behavior requires a running I2P or i2pd router reachable from the Android device or emulator.
 
+Android permission scope is documented separately in [Android Permissions](ANDROID_PERMISSIONS.md).
+
 Default local services:
 
 | Service | Default |
@@ -32,6 +34,10 @@ Default local services:
 | SAM Bridge | `127.0.0.1:7656` |
 | HTTP Proxy | `127.0.0.1:4444` |
 | Router Console | `127.0.0.1:7657` |
+
+## Android Permissions
+
+The real alpha requests `INTERNET` so it can connect to the configured I2P or i2pd router services. It does not request VPN, background routing, location, contacts, SMS, or network-state permissions.
 
 ## Logging Boundary
 

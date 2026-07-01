@@ -1,0 +1,47 @@
+name: Release Claim Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "README.md"
+      - "docs/**"
+      - "app/src/main/java/**"
+      - "scripts/check-release-claims.ps1"
+      - ".github/workflows/release-claims.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  release-claims:
+    name: Check release-facing claims
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Ensure ripgrep is available
+        shell: bash
+        run: |
+          if ! command -v rg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ripgrep
+          fi
+
+      - name: Run release claim check
+        shell: pwsh
+        run: ./scripts/check-release-claims.ps1
+
+      - name: Write claim check summary
+        run: |
+          {
+            echo "## I2P Knoks Release Claim Check"
+            echo ""
+            echo "- Script: \`scripts/check-release-claims.ps1\`"
+            echo "- Scope: README, docs, and app source release-facing text"
+            echo "- Result: passed"
+          } >> "$GITHUB_STEP_SUMMARY"
