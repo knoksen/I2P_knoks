@@ -72,8 +72,7 @@ jobs:
       - name: Create release notes
         shell: pwsh
         run: |
-          $sha256 = $env:APK_SHA256
-          @"
+          @'
           # ${{ inputs.title }}
 
           ## Summary
@@ -83,14 +82,14 @@ jobs:
           ## Verification
 
           - Release-facing claim check passed in GitHub Actions.
-          - ``testDebugUnitTest`` passed in GitHub Actions.
-          - ``assembleDebug`` passed in GitHub Actions.
+          - `testDebugUnitTest` passed in GitHub Actions.
+          - `assembleDebug` passed in GitHub Actions.
 
           ## APK Artifact
 
-          - Artifact: ``i2p-knoks-debug-apk``
-          - Checksum artifact: ``i2p-knoks-debug-apk-sha256``
-          - SHA-256: ``$sha256``
+          - Artifact: `i2p-knoks-debug-apk`
+          - Checksum artifact: `i2p-knoks-debug-apk-sha256`
+          - SHA-256: `SHA256_PLACEHOLDER`
           - Build type: debug
           - Intended use: real-alpha testing only
           - Not production signed
@@ -98,7 +97,7 @@ jobs:
 
           ## Checksum Verification
 
-          Download the ``i2p-knoks-debug-apk-sha256`` artifact and run:
+          Download the `i2p-knoks-debug-apk-sha256` artifact and run:
 
           ```
           sha256sum -c app-debug.apk.sha256
@@ -126,7 +125,7 @@ jobs:
           - Production signing
           - Play Store publishing
           - Anonymous browsing guarantees
-          "@ | Set-Content -Path release-notes.md -Encoding utf8
+          '@ -replace 'SHA256_PLACEHOLDER', $env:APK_SHA256 | Set-Content -Path release-notes.md -Encoding utf8
 
       - name: Draft GitHub release
         env:
