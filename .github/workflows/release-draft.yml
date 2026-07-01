@@ -79,6 +79,14 @@ jobs:
 
           Real-alpha release draft for I2P Knoks Browser.
 
+          ## Real
+
+          - External endpoint setup, diagnostics, SAM probing, and HTTP proxy page inspection.
+
+          ## Still LAB
+
+          - Full WebView browsing, VPN, Tor, secure chat, peer discovery, and embedded router modes.
+
           ## Verification
 
           - Release-facing claim check passed in GitHub Actions.

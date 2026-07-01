@@ -40,4 +40,10 @@ class AppExperienceModeTest {
 
         assertEquals(AppTab.values().toList(), tabs)
     }
+
+    @Test
+    fun `lab-only tabs are clearly labeled`() {
+        assertTrue(AppTab.VPN_VPS.label.startsWith("LAB"))
+        assertTrue(AppTab.COMMS.label.startsWith("LAB"))
+    }
 }

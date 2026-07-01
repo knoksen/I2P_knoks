@@ -34,8 +34,8 @@ import no.knoksen.i2pbrowser.ui.theme.*
 enum class AppTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     ROUTER("Router", Icons.Default.Dns),
     BROWSER("Browser", Icons.Default.Language),
-    VPN_VPS("VPN & VPS", Icons.Default.VpnLock),
-    COMMS("Secure Chat", Icons.Default.Forum),
+    VPN_VPS("LAB VPN/VPS", Icons.Default.VpnLock),
+    COMMS("LAB Chat", Icons.Default.Forum),
     IDENTITY("Identity", Icons.Default.Fingerprint)
 }
 
@@ -130,7 +130,7 @@ class MainActivity : ComponentActivity() {
                                                 letterSpacing = 1.5.sp
                                             )
                                             Text(
-                                                "GARLIC ROUTING NETWORK",
+                                                "LOCAL ROUTER STATUS",
                                                 fontSize = 9.sp,
                                                 color = CyberGreen,
                                                 fontWeight = FontWeight.Bold,
@@ -167,7 +167,7 @@ class MainActivity : ComponentActivity() {
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
-                                                    if (routerState.isRealI2p) "REAL_I2P" else if (routerState.isConnected) "SIMULATION" else "OFFLINE",
+                                                    if (routerState.isRealI2p) "SAM_READY" else if (routerState.isConnected) "SIMULATION" else "OFFLINE",
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = if (routerState.isRealI2p) CyberGreen else if (routerState.isConnected) CyberOrange else CyberRed,
                                                     fontWeight = FontWeight.Bold
@@ -521,7 +521,7 @@ fun NodeHistoryItem(node: AccessedNode) {
                 // Quick lock/unlocked icon indicator
                 Icon(
                     imageVector = if (isRealI2p) Icons.Default.Lock else Icons.Default.Visibility,
-                    contentDescription = "Encryption Type",
+                    contentDescription = "Routing Status",
                     tint = statusColor.copy(alpha = 0.7f),
                     modifier = Modifier.size(12.dp)
                 )
@@ -544,9 +544,9 @@ fun GlobalVpnStatusBar(
     }
     
     val statusText = when (vpnState.status) {
-        VpnStatus.CONNECTED -> "SECURE • ${vpnState.selectedVpn}"
-        VpnStatus.CONNECTING -> "CONNECTING..."
-        VpnStatus.DISCONNECTED -> "DISCONNECTED (Private VPN Recommended)"
+        VpnStatus.CONNECTED -> "LAB CONNECTED • ${vpnState.selectedVpn}"
+        VpnStatus.CONNECTING -> "LAB CONNECTING..."
+        VpnStatus.DISCONNECTED -> "LAB IDLE"
     }
     
     val statsText = if (vpnState.status == VpnStatus.CONNECTED) {
@@ -571,12 +571,12 @@ fun GlobalVpnStatusBar(
         ) {
             Icon(
                 imageVector = Icons.Default.VpnLock,
-                contentDescription = "VPN Status Indicator",
+                contentDescription = "Lab VPN Status Indicator",
                 tint = statusColor,
                 modifier = Modifier.size(14.dp)
             )
             Text(
-                text = "VPN Status:",
+                text = "LAB VPN Status:",
                 fontSize = 10.sp,
                 color = TextSecondary,
                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
@@ -596,7 +596,7 @@ fun GlobalVpnStatusBar(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = if (vpnState.status == VpnStatus.CONNECTED) "SECURED" else "UNSECURED",
+                text = if (vpnState.status == VpnStatus.CONNECTED) "LAB ACTIVE" else "LAB IDLE",
                 fontSize = 8.sp,
                 color = if (vpnState.status == VpnStatus.CONNECTED) CyberGreen else CyberOrange,
                 fontWeight = FontWeight.ExtraBold,
@@ -607,7 +607,7 @@ fun GlobalVpnStatusBar(
             )
             Icon(
                 imageVector = Icons.Default.ChevronRight,
-                contentDescription = "VPN Settings Link",
+                contentDescription = "Lab VPN Settings Link",
                 tint = TextSecondary,
                 modifier = Modifier.size(12.dp)
             )

@@ -66,7 +66,7 @@ class ExampleRobolectricTest {
     assertTrue(state.isConnected)
     assertTrue(state.isRealI2p)
     assertEquals("real-destination", state.realDestination)
-    assertEquals("Connected to REAL I2P via SAM API", state.statusText)
+    assertEquals("Connected to local I2P router via SAM", state.statusText)
   }
 
   @Test
