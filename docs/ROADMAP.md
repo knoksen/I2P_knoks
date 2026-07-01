@@ -11,9 +11,11 @@ The project rule remains strict: release-facing behavior and wording must be bac
   - Added `Release Claim Check` GitHub Actions workflow.
   - Added least-privilege GitHub Actions permissions.
   - Added `ready_for_review` pull request trigger.
-  - Fixed cross-platform PowerShell `LASTEXITCODE` handling after ripgrep no-match pass.
-  - Aligned Android CI with the JDK 21 release verification baseline.
-  - Remote `main` checks were green on `e552d03`:
+  - Under Ubuntu + PowerShell, a no-match `rg` result can leave `$LASTEXITCODE=1` even when the check should pass.
+  - `scripts/check-release-claims.ps1` now resets `$global:LASTEXITCODE = 0` after a clean pass.
+  - Android CI must use JDK 21 to match the repository release verification baseline.
+  - Release claim rules were not weakened while fixing CI.
+  - Remote PR #17 checks were green before merge:
     - `Release Claim Check`: success
     - `Android`: success
   - Follow-up issues:
