@@ -17,7 +17,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -34,3 +34,19 @@ jobs:
           name: i2p-knoks-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      - name: Write debug APK summary
+        run: |
+          {
+            echo "## I2P Knoks Debug APK"
+            echo ""
+            echo "- Artifact: \`i2p-knoks-debug-apk\`"
+            echo "- Build type: debug"
+            echo "- Intended use: real-alpha testing only"
+            echo "- Not production signed"
+            echo "- Not a Play Store release"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Ref: \`${GITHUB_REF_NAME}\`"
+            echo ""
+            echo "Use this artifact together with docs/REAL_DEVICE_TESTING.md and docs/RELEASE_PROCESS.md."
+          } >> "$GITHUB_STEP_SUMMARY"
