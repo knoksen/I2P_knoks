@@ -50,7 +50,7 @@ Recommended issue order:
 
 ## Manual Repository Settings
 
-Branch protection / ruleset configuration is required to make M9.3 merge-blocking policy instead of only an operational workflow.
+Branch protection / ruleset configuration is required to make M9.3 a merge-blocking policy instead of only an operational workflow.
 
 Recommended `main` protection:
 
