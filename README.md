@@ -36,6 +36,8 @@ Current release baseline: `v0.3.0-real-alpha`.
 
 More detail: [Security Boundaries](docs/SECURITY_BOUNDARIES.md).
 
+Current hardening roadmap: [Roadmap](docs/ROADMAP.md).
+
 ## Real Alpha Testing
 
 Use the reproducible test plan before cutting or reviewing alpha releases:
@@ -75,6 +77,8 @@ Desktop/LAN router mode requires the user to enter the real host. The app should
 ## Required Android Permissions
 
 - `INTERNET`: required to connect to the configured local or LAN I2P router services.
+- `ACCESS_NETWORK_STATE`: read-only network connectivity state permission retained in the current manifest.
+- Android permission boundary: [Android Permissions](docs/ANDROID_PERMISSIONS.md).
 
 No VPN service permission or background routing service is expected for the current real alpha.
 
