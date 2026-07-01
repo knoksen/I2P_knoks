@@ -60,6 +60,8 @@ For real-alpha release verification, tagging, APK artifact handling, and release
 - [Release Process](docs/RELEASE_PROCESS.md)
 - [Changelog Template](docs/CHANGELOG_TEMPLATE.md)
 
+Debug APK artifacts are produced by the Android workflow as `i2p-knoks-debug-apk` for real-alpha testing.
+
 ## Endpoint Defaults
 
 Default local endpoint:
