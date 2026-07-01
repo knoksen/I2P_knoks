@@ -59,6 +59,7 @@ For emulator and physical Android testing against Java I2P or i2pd, see:
 For real-alpha release verification, tagging, APK artifact handling, and release notes, see:
 
 - [Release Process](docs/RELEASE_PROCESS.md)
+- [Release Candidate Checklist](docs/RELEASE_CANDIDATE_CHECKLIST.md)
 - [Changelog Template](docs/CHANGELOG_TEMPLATE.md)
 
 Debug APK artifacts are produced by the Android workflow as `i2p-knoks-debug-apk` for real-alpha testing.

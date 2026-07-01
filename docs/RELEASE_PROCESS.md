@@ -197,7 +197,7 @@ The workflow does not perform production signing or Play Store publishing.
 
 ## Release Candidate Readiness Gate
 
-Use the `Release Candidate Readiness Checklist` workflow before publishing a real-alpha release candidate.
+Use [Release Candidate Readiness Checklist](RELEASE_CANDIDATE_CHECKLIST.md) and the `Release Candidate Readiness Checklist` workflow before publishing a real-alpha release candidate.
 
 The manual gate requires explicit confirmation that:
 

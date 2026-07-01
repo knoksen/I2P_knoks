@@ -33,10 +33,14 @@ on:
         default: false
         type: boolean
       confirm_apk_metadata_aligned:
-        description: "Confirm artifact metadata matches i2p-knoks-debug-apk debug contract"
+        description: "Confirm APK artifact and checksum metadata match the debug artifact contract"
         required: true
         default: false
         type: boolean
+      rc_commit:
+        description: "Release candidate commit SHA or ref being reviewed"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -47,6 +51,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.rc_commit }}
+
+      - name: Ensure ripgrep is available
+        shell: bash
+        run: |
+          if ! command -v rg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ripgrep
+          fi
+
+      - name: Run release claim check
+        shell: pwsh
+        run: ./scripts/check-release-claims.ps1
+
+      - name: Verify release candidate checklist exists
+        shell: bash
+        run: test -f docs/RELEASE_CANDIDATE_CHECKLIST.md
+
       - name: Check required confirmations
         shell: bash
         run: |
@@ -65,7 +90,7 @@ jobs:
             "Release notes include Known Limits"
             "Release notes include Non-goals"
             "Release-facing docs aligned"
-            "APK metadata aligned"
+            "APK artifact and checksum metadata aligned"
           )
 
           failed=0
@@ -87,11 +112,22 @@ jobs:
             echo "## Release Candidate Readiness"
             echo ""
             echo "- Release tag: \`${{ inputs.release_tag }}\`"
+            echo "- RC ref: \`${{ inputs.rc_commit }}\`"
+            echo "- Checklist: \`docs/RELEASE_CANDIDATE_CHECKLIST.md\`"
+            echo "- Release claim check: passed"
             echo "- Real section confirmed"
             echo "- Still LAB section confirmed"
             echo "- Known Limits section confirmed"
             echo "- Non-goals section confirmed"
             echo "- Release-facing docs aligned"
-            echo "- APK artifact metadata aligned"
+            echo "- APK artifact and checksum metadata aligned"
             echo "- Artifact contract: \`i2p-knoks-debug-apk\` from \`app/build/outputs/apk/debug/*.apk\` (debug, real-alpha testing only)"
+            echo "- Checksum contract: \`i2p-knoks-debug-apk-sha256\` containing \`app-debug.apk.sha256\`"
+            echo ""
+            echo "Required manual review areas:"
+            echo "- Android permission boundary"
+            echo "- Security boundaries"
+            echo "- RELEASE_REAL UI boundaries"
+            echo "- APK checksum verification"
+            echo "- Release notes known limits and non-goals"
           } >> "$GITHUB_STEP_SUMMARY"

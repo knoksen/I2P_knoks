@@ -24,6 +24,11 @@ The project rule remains strict: release-facing behavior and wording must be bac
     - #20 RELEASE_REAL wording audit
     - #21 APK checksum and artifact verification
     - #22 CI lessons from M9.3
+- [x] M9.4 groundwork
+  - #19 documented the Android permission boundary.
+  - #20 audited `RELEASE_REAL` UI wording.
+  - #21 added APK checksum and artifact verification.
+  - #18 adds the release candidate readiness checklist and connects the existing manual readiness workflow to it.
 
 ## Next
 
@@ -33,10 +38,9 @@ Objective: create a release candidate readiness gate that verifies build artifac
 
 First tasks:
 
-- Define `docs/RELEASE_CANDIDATE_CHECKLIST.md`.
-- Add manual workflow `.github/workflows/release-candidate.yml`.
-- Generate APK SHA-256 checksum.
-- Upload checksum as artifact.
+- Use `docs/RELEASE_CANDIDATE_CHECKLIST.md` as the manual RC review gate.
+- Use the existing manual `Release Candidate Readiness Checklist` workflow as a summary and confirmation gate.
+- Keep APK SHA-256 checksum generation in the Android and draft-release workflows.
 - Verify Android manifest permissions against docs.
 - Verify release notes do not contain blocked claims.
 - Verify `RELEASE_REAL` hides lab/simulation tabs.
