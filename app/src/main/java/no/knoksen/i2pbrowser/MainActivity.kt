@@ -116,7 +116,7 @@ class MainActivity : ComponentActivity() {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
                                             Icons.Default.Security,
-                                            contentDescription = "Security Status",
+                                            contentDescription = "Connection Status",
                                             tint = CyberGreen,
                                             modifier = Modifier.size(28.dp)
                                         )
@@ -197,7 +197,7 @@ class MainActivity : ComponentActivity() {
                                         ) {
                                             Icon(
                                                 Icons.Default.History,
-                                                contentDescription = "View Node History Logs",
+                                                contentDescription = "View Inspection History",
                                                 tint = CyberBlue,
                                                 modifier = Modifier.size(24.dp)
                                             )
@@ -301,7 +301,7 @@ fun DrawerContent(
                         letterSpacing = 1.sp
                     )
                     Text(
-                        "Garlic Routing Transparency",
+                        "Inspection history and endpoint state",
                         fontSize = 11.sp,
                         color = TextSecondary
                     )
@@ -361,7 +361,7 @@ fun DrawerContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "ACCESSED DARKWEB NODES",
+                    "INSPECTION HISTORY",
                     style = MaterialTheme.typography.labelSmall,
                     color = TextSecondary,
                     fontWeight = FontWeight.Bold
@@ -395,7 +395,7 @@ fun DrawerContent(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            "No darkweb nodes accessed yet.",
+                            "No inspection history yet.",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSecondary,
                             textAlign = TextAlign.Center
@@ -434,7 +434,7 @@ fun DrawerContent(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            "Garlic Tunnel Shield Active",
+                            "LOCAL INSPECTION LOG",
                             style = MaterialTheme.typography.labelSmall,
                             color = CyberGreen,
                             fontWeight = FontWeight.Bold
@@ -442,7 +442,7 @@ fun DrawerContent(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Every hop decodes exactly one layer of routing instruction using ephemeral key tags, preventing total path exposure.",
+                        "Entries reflect app navigation and page-inspector results. They do not prove anonymity or full-device routing.",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextSecondary,
                         lineHeight = 12.sp

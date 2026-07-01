@@ -391,157 +391,157 @@ fun RouterScreen(
             I2pDiagnosticsPanel(viewModel = viewModel)
         }
 
-        // Tunnel Configuration
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-                border = BorderStroke(1.dp, CyberBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "PATH PROFILE & HOPS",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = CyberBlue,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+        if (appMode == AppExperienceMode.LAB_SIMULATION) {
+            // Tunnel Configuration
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                    border = BorderStroke(1.dp, CyberBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "LAB PATH PROFILE & HOPS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CyberBlue,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        listOf(1, 3, 5).forEach { hops ->
-                            val isSelected = state.tunnelHops == hops
-                            OutlinedButton(
-                                onClick = { viewModel.setTunnelHops(hops) },
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (isSelected) CyberGreen.copy(alpha = 0.15f) else Color.Transparent,
-                                    contentColor = if (isSelected) CyberGreen else TextPrimary
-                                ),
-                                border = BorderStroke(
-                                    width = 1.dp,
-                                    color = if (isSelected) CyberGreen else CyberBorder
-                                ),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("hops_button_$hops")
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        "$hops Hop${if (hops > 1) "s" else ""}",
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Text(
-                                        when (hops) {
-                                            1 -> "Low Privacy"
-                                            3 -> "Standard I2P"
-                                            else -> "High Latency"
-                                        },
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = if (isSelected) CyberGreen else TextSecondary
-                                    )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            listOf(1, 3, 5).forEach { hops ->
+                                val isSelected = state.tunnelHops == hops
+                                OutlinedButton(
+                                    onClick = { viewModel.setTunnelHops(hops) },
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = if (isSelected) CyberGreen.copy(alpha = 0.15f) else Color.Transparent,
+                                        contentColor = if (isSelected) CyberGreen else TextPrimary
+                                    ),
+                                    border = BorderStroke(
+                                        width = 1.dp,
+                                        color = if (isSelected) CyberGreen else CyberBorder
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("hops_button_$hops")
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            "$hops Hop${if (hops > 1) "s" else ""}",
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            when (hops) {
+                                                1 -> "Lab low-latency"
+                                                3 -> "Lab standard"
+                                                else -> "Lab high-latency"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isSelected) CyberGreen else TextSecondary
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        "Each hop encapsulates packets in multiple layers of asymmetric encryption. Higher hops increase onion-routing garlic protection against network node correlations.",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = TextSecondary
-                    )
-                }
-            }
-        }
-
-        // Live Garlic Routing Path Simulation Dashboard
-        item {
-            GarlicRoutingPathVisualizer(
-                tunnelHops = state.tunnelHops,
-                isConnected = state.isConnected,
-                isConnecting = state.isConnecting
-            )
-        }
-
-        // Live Circuit Statistics Dashboard Widget
-        item {
-            I2PCircuitStatsWidget(state = state)
-        }
-
-        // Live Health Optimizer Widget
-        item {
-            I2POptimizerWidget(state = state, viewModel = viewModel)
-        }
-
-        // Garlic Routing Knowledge Base Help Center
-        item {
-            I2PHelpCenterWidget()
-        }
-
-        // Telemetry Statistics
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-                border = BorderStroke(1.dp, CyberBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "ROUTER NETWORK TELEMETRY",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = CyberBlue,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TelemetryItem(
-                            label = "ACTIVE TUNNELS",
-                            value = "${state.activeTunnels}",
-                            icon = Icons.Default.Cyclone,
-                            color = CyberBlue
-                        )
-                        TelemetryItem(
-                            label = "PEERS IN NETDB",
-                            value = "${state.knownPeers}",
-                            icon = Icons.Default.Groups,
-                            color = CyberPurple
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Divider(color = CyberBorder)
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TelemetryItem(
-                            label = "BANDWIDTH IN",
-                            value = String.format("%.1f KB/s", state.bandwidthInKbps),
-                            icon = Icons.Default.ArrowDownward,
-                            color = CyberGreen
-                        )
-                        TelemetryItem(
-                            label = "BANDWIDTH OUT",
-                            value = String.format("%.1f KB/s", state.bandwidthOutKbps),
-                            icon = Icons.Default.ArrowUpward,
-                            color = CyberOrange
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            "Local preview only. These controls do not change a real router path or prove traffic confidentiality or integrity.",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TextSecondary
                         )
                     }
                 }
             }
-        }
 
-        if (appMode == AppExperienceMode.LAB_SIMULATION) {
+            // Live Garlic Routing Path Simulation Dashboard
+            item {
+                GarlicRoutingPathVisualizer(
+                    tunnelHops = state.tunnelHops,
+                    isConnected = state.isConnected,
+                    isConnecting = state.isConnecting
+                )
+            }
+
+            // Live Circuit Statistics Dashboard Widget
+            item {
+                I2PCircuitStatsWidget(state = state)
+            }
+
+            // Live Health Optimizer Widget
+            item {
+                I2POptimizerWidget(state = state, viewModel = viewModel)
+            }
+
+            // Garlic Routing Knowledge Base Help Center
+            item {
+                I2PHelpCenterWidget()
+            }
+
+            // Telemetry Statistics
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                    border = BorderStroke(1.dp, CyberBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "LAB ROUTER TELEMETRY",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CyberBlue,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            TelemetryItem(
+                                label = "LAB PATHS",
+                                value = "${state.activeTunnels}",
+                                icon = Icons.Default.Cyclone,
+                                color = CyberBlue
+                            )
+                            TelemetryItem(
+                                label = "LAB PEERS",
+                                value = "${state.knownPeers}",
+                                icon = Icons.Default.Groups,
+                                color = CyberPurple
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Divider(color = CyberBorder)
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            TelemetryItem(
+                                label = "BANDWIDTH IN",
+                                value = String.format("%.1f KB/s", state.bandwidthInKbps),
+                                icon = Icons.Default.ArrowDownward,
+                                color = CyberGreen
+                            )
+                            TelemetryItem(
+                                label = "BANDWIDTH OUT",
+                                value = String.format("%.1f KB/s", state.bandwidthOutKbps),
+                                icon = Icons.Default.ArrowUpward,
+                                color = CyberOrange
+                            )
+                        }
+                    }
+                }
+            }
+
             item {
                 PeerDiscoverySection(viewModel = viewModel)
             }
@@ -1400,7 +1400,7 @@ fun BrowserScreen(
 
         Divider(color = CyberBorder)
 
-        // Quick Handshake & Accessory Cockpit
+        // Inspection shortcuts and local preview controls
         var isDockExpanded by remember { mutableStateOf(false) }
         val activeAccessories by viewModel.activeAccessories.collectAsState()
 
@@ -1423,13 +1423,13 @@ fun BrowserScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            Icons.Default.Shield,
+                            Icons.Default.Tune,
                             contentDescription = null,
                             tint = CyberGreen,
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            "QUICK HANDSHAKE & ACCESSORY COCKPIT",
+                            "INSPECTION SHORTCUTS & PREVIEW CONTROLS",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
@@ -1575,7 +1575,7 @@ fun BrowserScreen(
                     Divider(color = CyberBorder.copy(alpha = 0.5f))
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Adviced accessories
+                    // Preview accessories
                     Text(
                         "LAB PREVIEW CONTROLS",
                         color = CyberPurple,
@@ -2125,9 +2125,9 @@ fun BrowserScreen(
                                 ) {
                                     Text(
                                         text = when {
-                                            isIndexingSearchActive -> "i2p://indexer: dht_find_providers query sent to [3] active garlic peers..."
-                                            searchQuery.isNotEmpty() -> "i2p://indexer: returned ${filteredBookmarks.size} verified Leaseset record(s) matching \"$searchQuery\"."
-                                            else -> "i2p://indexer: local addressbook (hosts.txt) parsed • ${bookmarks.size} router entries indexed."
+                                            isIndexingSearchActive -> "local-index: filtering saved preview entries..."
+                                            searchQuery.isNotEmpty() -> "local-index: returned ${filteredBookmarks.size} saved preview record(s) matching \"$searchQuery\"."
+                                            else -> "local-index: ${bookmarks.size} saved preview entries available."
                                         },
                                         fontSize = 9.sp,
                                         color = if (isIndexingSearchActive) CyberOrange else if (searchQuery.isNotEmpty()) CyberBlue else TextSecondary,
@@ -2254,7 +2254,7 @@ fun BrowserScreen(
     if (showBookmarkDialog) {
         AlertDialog(
             onDismissRequest = { showBookmarkDialog = false },
-            title = { Text("Add Darkweb Bookmark", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            title = { Text("Add I2P Bookmark", color = TextPrimary, fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
@@ -8346,7 +8346,7 @@ fun ProxySettingsDialog(
 
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                "Routes SOCKS-compliant browser traffic through your integrated garlic router node securely.",
+                                "Configures a SOCKS proxy endpoint for app-level requests when a compatible external service is reachable.",
                                 fontSize = 11.sp,
                                 color = TextSecondary
                             )

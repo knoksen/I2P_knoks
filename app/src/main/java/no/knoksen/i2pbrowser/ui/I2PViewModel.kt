@@ -504,7 +504,7 @@ class I2PViewModel @JvmOverloads constructor(
             // Create a default identity profile if none exists
             repository.allIdentities.collect { list ->
                 if (list.isEmpty()) {
-                    val defaultId = repository.createIdentity("Anonymous Comrade")
+                    val defaultId = repository.createIdentity("Local Profile")
                     _activeIdentity.value = defaultId
                 } else if (_activeIdentity.value == null) {
                     _activeIdentity.value = list.first()
@@ -791,7 +791,7 @@ class I2PViewModel @JvmOverloads constructor(
                 state.httpProxyEnabled && state.socksProxyEnabled -> "HTTP (${state.httpProxyHost}:${state.httpProxyPort}) + SOCKS (${state.socksProxyHost}:${state.socksProxyPort})"
                 state.httpProxyEnabled -> "HTTP (${state.httpProxyHost}:${state.httpProxyPort})"
                 state.socksProxyEnabled -> "SOCKS5 (${state.socksProxyHost}:${state.socksProxyPort})"
-                else -> "Direct Garlic Routing"
+                else -> "Direct app request (no configured proxy)"
             }
             repository.addLog("PROXY", "Routing browser request to $cleanUrl via $proxyMsg", "INFO")
             
@@ -933,24 +933,24 @@ class I2PViewModel @JvmOverloads constructor(
         return when {
             cleanUrl.contains("127.0.0.1:7657") || cleanUrl.contains("localhost:7657") || cleanUrl.contains("router-console") -> "I2P Router Console WebUI"
             cleanUrl.contains("i2p-project") -> "I2P Project Homepage"
-            cleanUrl.contains("anon.chat") -> "AnonIRC Relay Chat"
-            cleanUrl.contains("wiki.leaks") -> "Invisible Cryptic Wiki"
-            cleanUrl.contains("secure.mail") -> "Garlic Mail Service"
-            cleanUrl.contains("forum.feed") -> "Hidden Forum Feed"
-            cleanUrl.contains("darkbert.intel") -> "DarkBERT Threat Intelligence"
-            else -> "Crypto Host Preview"
+            cleanUrl.contains("anon.chat") -> "Sample Chat Preview"
+            cleanUrl.contains("wiki.leaks") -> "Sample Wiki Preview"
+            cleanUrl.contains("secure.mail") -> "Sample Mail Preview"
+            cleanUrl.contains("forum.feed") -> "Forum Feed Preview"
+            cleanUrl.contains("darkbert.intel") -> "DarkBERT Preview"
+            else -> "Local Host Preview"
         }
     }
 
     fun simulateRandomNodeAccess() {
         val urls = listOf(
             "http://postman.i2p" to "Postman Mail & Forums",
-            "http://sybil.i2p" to "Sybil Network Radar",
-            "http://duckduckgo.i2p" to "Onion/I2P Mirror Search",
+            "http://sybil.i2p" to "Sybil Topic Preview",
+            "http://duckduckgo.i2p" to "I2P Search Preview",
             "http://diftracker.i2p" to "Decentralized File Exchange",
-            "http://git.repo.i2p" to "Encrypted Source Forge",
-            "http://hidden.wiki.i2p" to "Uncensored Knowledge Depot",
-            "http://stats.i2p" to "Router Statistic Terminal",
+            "http://git.repo.i2p" to "Source Forge Preview",
+            "http://hidden.wiki.i2p" to "Knowledge Depot Preview",
+            "http://stats.i2p" to "Router Stats Preview",
             "http://jrandom.i2p" to "Creator Legacy Blog"
         )
         val selected = urls.random()
