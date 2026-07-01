@@ -190,7 +190,7 @@ class I2PRepository(
             Bookmark(title = "Sample Wiki Preview", url = "http://wiki.leaks.i2p", iconName = "description", colorHex = "#FF3D00"),
             Bookmark(title = "Sample Mail Preview", url = "http://secure.mail.i2p", iconName = "mail", colorHex = "#FFD600"),
             Bookmark(title = "Forum Feed Preview", url = "http://forum.feed.i2p", iconName = "forum", colorHex = "#00B0FF"),
-            Bookmark(title = "DarkBERT Threat Intelligence", url = "http://darkbert.intel.i2p", iconName = "shield", colorHex = "#AA00FF")
+            Bookmark(title = "DarkBERT Preview", url = "http://darkbert.intel.i2p", iconName = "shield", colorHex = "#AA00FF")
         )
 
         // Seed bookmarks if empty

@@ -937,7 +937,7 @@ class I2PViewModel @JvmOverloads constructor(
             cleanUrl.contains("wiki.leaks") -> "Sample Wiki Preview"
             cleanUrl.contains("secure.mail") -> "Sample Mail Preview"
             cleanUrl.contains("forum.feed") -> "Forum Feed Preview"
-            cleanUrl.contains("darkbert.intel") -> "DarkBERT Threat Intelligence"
+            cleanUrl.contains("darkbert.intel") -> "DarkBERT Preview"
             else -> "Local Host Preview"
         }
     }
@@ -945,12 +945,12 @@ class I2PViewModel @JvmOverloads constructor(
     fun simulateRandomNodeAccess() {
         val urls = listOf(
             "http://postman.i2p" to "Postman Mail & Forums",
-            "http://sybil.i2p" to "Sybil Network Radar",
+            "http://sybil.i2p" to "Sybil Topic Preview",
             "http://duckduckgo.i2p" to "I2P Search Preview",
             "http://diftracker.i2p" to "Decentralized File Exchange",
             "http://git.repo.i2p" to "Source Forge Preview",
             "http://hidden.wiki.i2p" to "Knowledge Depot Preview",
-            "http://stats.i2p" to "Router Statistic Terminal",
+            "http://stats.i2p" to "Router Stats Preview",
             "http://jrandom.i2p" to "Creator Legacy Blog"
         )
         val selected = urls.random()
