@@ -132,6 +132,27 @@ Create a GitHub Release from the pushed tag. Include release notes that describe
 
 Attach or link the debug APK artifact from the matching workflow run. Confirm the artifact belongs to the intended commit/tag before publishing.
 
+## Manual Draft Release Workflow
+
+The `Draft Real Alpha Release` workflow can create a draft GitHub Release for an existing tag.
+
+Inputs:
+
+- `tag`: existing release tag to check out.
+- `title`: GitHub Release title.
+- `prerelease`: whether to mark the release as a prerelease.
+
+The workflow:
+
+1. Checks out the requested tag.
+2. Runs the release-facing claim check.
+3. Runs `testDebugUnitTest`.
+4. Runs `assembleDebug`.
+5. Uploads the debug APK artifact as `i2p-knoks-debug-apk`.
+6. Creates a draft GitHub Release and attaches the debug APK.
+
+The workflow does not perform production signing or Play Store publishing.
+
 ## Release Notes Template
 
 ### Summary
