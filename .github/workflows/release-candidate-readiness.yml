@@ -1,0 +1,97 @@
+name: Release Candidate Readiness Checklist
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag being prepared (for example v0.3.8-release-packaging)"
+        required: true
+        type: string
+      confirm_real_section:
+        description: "Confirm release notes include a Real section"
+        required: true
+        default: false
+        type: boolean
+      confirm_still_lab_section:
+        description: "Confirm release notes include a Still LAB section"
+        required: true
+        default: false
+        type: boolean
+      confirm_known_limits_section:
+        description: "Confirm release notes include a Known Limits section"
+        required: true
+        default: false
+        type: boolean
+      confirm_non_goals_section:
+        description: "Confirm release notes include a Non-goals section"
+        required: true
+        default: false
+        type: boolean
+      confirm_release_docs_aligned:
+        description: "Confirm release-facing docs match release notes scope and wording"
+        required: true
+        default: false
+        type: boolean
+      confirm_apk_metadata_aligned:
+        description: "Confirm artifact metadata matches i2p-knoks-debug-apk debug contract"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  readiness-checklist:
+    name: Run release candidate readiness checklist
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check required confirmations
+        shell: bash
+        run: |
+          checks=(
+            "${{ inputs.confirm_real_section }}"
+            "${{ inputs.confirm_still_lab_section }}"
+            "${{ inputs.confirm_known_limits_section }}"
+            "${{ inputs.confirm_non_goals_section }}"
+            "${{ inputs.confirm_release_docs_aligned }}"
+            "${{ inputs.confirm_apk_metadata_aligned }}"
+          )
+
+          names=(
+            "Release notes include Real"
+            "Release notes include Still LAB"
+            "Release notes include Known Limits"
+            "Release notes include Non-goals"
+            "Release-facing docs aligned"
+            "APK metadata aligned"
+          )
+
+          failed=0
+          for i in "${!checks[@]}"; do
+            if [[ "${checks[$i]}" != "true" ]]; then
+              echo "Missing confirmation: ${names[$i]}" >&2
+              failed=1
+            fi
+          done
+
+          if [[ "$failed" -ne 0 ]]; then
+            exit 1
+          fi
+
+      - name: Write readiness summary
+        shell: bash
+        run: |
+          {
+            echo "## Release Candidate Readiness"
+            echo ""
+            echo "- Release tag: \`${{ inputs.release_tag }}\`"
+            echo "- Real section confirmed"
+            echo "- Still LAB section confirmed"
+            echo "- Known Limits section confirmed"
+            echo "- Non-goals section confirmed"
+            echo "- Release-facing docs aligned"
+            echo "- APK artifact metadata aligned"
+            echo "- Artifact contract: \`i2p-knoks-debug-apk\` from \`app/build/outputs/apk/debug/*.apk\` (debug, real-alpha testing only)"
+          } >> "$GITHUB_STEP_SUMMARY"
