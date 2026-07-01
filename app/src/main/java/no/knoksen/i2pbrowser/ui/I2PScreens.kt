@@ -99,7 +99,7 @@ fun RouterScreen(
                     ) {
                         Column {
                             Text(
-                                "GARLIC ROUTER STATUS",
+                                "I2P ROUTER STATUS",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = CyberBlue,
                                 fontWeight = FontWeight.Bold
@@ -107,7 +107,7 @@ fun RouterScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 when {
-                                    state.isRealI2p -> "REAL I2P ROUTING"
+                                    state.isRealI2p -> "LOCAL I2P ROUTER DETECTED"
                                     state.isConnected -> "SIMULATION ACTIVE"
                                     state.isConnecting -> "CHECKING SAM"
                                     else -> "OFFLINE"
@@ -214,7 +214,7 @@ fun RouterScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "REAL I2P BRIDGE (SAM API v3.1)",
+                            "LOCAL SAM BRIDGE (API v3.1)",
                             style = MaterialTheme.typography.labelSmall,
                             color = if (state.isRealI2p) CyberGreen else CyberBlue,
                             fontWeight = FontWeight.Bold
@@ -233,7 +233,7 @@ fun RouterScreen(
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = if (state.isRealI2p) "REAL_I2P" else "SIMULATION",
+                                text = if (state.isRealI2p) "SAM_READY" else "SIMULATION",
                                 fontSize = 8.sp,
                                 color = if (state.isRealI2p) CyberGreen else CyberBlue,
                                 fontWeight = FontWeight.Bold,
@@ -314,7 +314,7 @@ fun RouterScreen(
                     if (state.isRealI2p && state.realDestination.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            "REAL TRANSIENT I2P DESTINATION",
+                            "ACTIVE SAM DESTINATION",
                             style = MaterialTheme.typography.labelSmall,
                             color = CyberGreen,
                             fontWeight = FontWeight.Bold
@@ -400,7 +400,7 @@ fun RouterScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        "GARLIC ENCRYPTION PATH & HOPS",
+                        "PATH PROFILE & HOPS",
                         style = MaterialTheme.typography.labelSmall,
                         color = CyberBlue,
                         fontWeight = FontWeight.Bold
@@ -580,7 +580,7 @@ fun RouterScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "Console is empty. Enable router to trace garlic connections.",
+                        "Console is empty. Enable the router to capture local activity updates.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary,
                         textAlign = TextAlign.Center
@@ -2352,16 +2352,16 @@ fun RenderWebpageContents(url: String, viewModel: I2PViewModel, onNavigate: (Str
         }
         url.contains("i2p-project.i2p") -> {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Simulating standard documentation wiki host inside garlic-routed local directory.", color = TextSecondary, style = MaterialTheme.typography.labelSmall)
+                Text("Local preview of a documentation-style I2P directory entry.", color = TextSecondary, style = MaterialTheme.typography.labelSmall)
                 Text(
-                    "Welcome to the Invisible Internet Project (I2P) decentralized anonymous communication layer. Unlike peer-to-peer torrents, I2P routing layers protect both the client identity and the host server (known as eepsite services) through dynamic garlic routing pools.",
+                    "This screen shows local sample content for an I2P documentation page. It does not verify anonymity, remote eepsite reachability, or live network behavior.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextPrimary
                 )
                 Text("Suggested Core Portals:", style = MaterialTheme.typography.bodyMedium, color = CyberBlue, fontWeight = FontWeight.Bold)
-                WebpageHyperlink("Browse Anonymous Relay Chat (anon.chat.i2p)", "http://anon.chat.i2p", onNavigate)
-                WebpageHyperlink("Browse Invisible Cryptic Wiki (wiki.leaks.i2p)", "http://wiki.leaks.i2p", onNavigate)
-                WebpageHyperlink("Browse Garlic Mail Service (secure.mail.i2p)", "http://secure.mail.i2p", onNavigate)
+                WebpageHyperlink("Browse Sample Chat Preview (anon.chat.i2p)", "http://anon.chat.i2p", onNavigate)
+                WebpageHyperlink("Browse Sample Document Index (wiki.leaks.i2p)", "http://wiki.leaks.i2p", onNavigate)
+                WebpageHyperlink("Browse Sample Mail Preview (secure.mail.i2p)", "http://secure.mail.i2p", onNavigate)
             }
         }
         url.contains("anon.chat.i2p") -> {
@@ -2369,10 +2369,10 @@ fun RenderWebpageContents(url: String, viewModel: I2PViewModel, onNavigate: (Str
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(8.dp).background(CyberGreen, RoundedCornerShape(4.dp)))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Live Node Chat Pool Active", color = CyberGreen, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    Text("Sample Chat Preview", color = CyberGreen, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                 }
                 Text(
-                    "AnonIRC lets you converse safely inside high-entropy garlic tunnels. This portal is linked with your cryptographic keys to secure conversations. Navigate to the Encrypted Communications tab to dispatch private keypairs or secure text packets.",
+                    "This page is a local preview only. It does not establish encrypted chat, anonymous routing, or live key exchange. Use it to inspect browser copy and navigation states.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextPrimary
                 )
@@ -2384,9 +2384,9 @@ fun RenderWebpageContents(url: String, viewModel: I2PViewModel, onNavigate: (Str
         }
         url.contains("wiki.leaks.i2p") -> {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("WIKILEAKS INTERNAL INVISIBLE REPOSITORY", style = MaterialTheme.typography.bodySmall, color = CyberOrange, fontWeight = FontWeight.Bold)
+                Text("DOCUMENT INDEX PREVIEW", style = MaterialTheme.typography.bodySmall, color = CyberOrange, fontWeight = FontWeight.Bold)
                 Text(
-                    "This decentralized database acts as an anonymous cryptographic drop box. Our system receives encrypted garlic payloads, logs peer correlations, and redistributes documents without centralized physical hosts.",
+                    "This is local sample content for a document index. It does not provide anonymous submissions, encrypted drop-box delivery, or remote document hosting.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextPrimary
                 )
@@ -2398,15 +2398,15 @@ fun RenderWebpageContents(url: String, viewModel: I2PViewModel, onNavigate: (Str
         }
         url.contains("secure.mail.i2p") -> {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("GARLIC SECURE MAIL ENGINE", style = MaterialTheme.typography.bodySmall, color = CyberPurple, fontWeight = FontWeight.Bold)
+                Text("MAIL PREVIEW", style = MaterialTheme.typography.bodySmall, color = CyberPurple, fontWeight = FontWeight.Bold)
                 Text(
-                    "Send and collect asymmetric encrypted emails. Messages sent via secure.mail.i2p are automatically wrapped in Garlic cryptocodes and dispatched to host destination hashes.",
+                    "This page is a local mail preview. It does not send or receive encrypted email and it does not contact remote destinations.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextPrimary
                 )
                 Divider(color = CyberBorder)
                 Text("Inbox status:", style = MaterialTheme.typography.bodyMedium, color = CyberBlue, fontWeight = FontWeight.Bold)
-                Text("All messages are digitally signed. Private communication is protected under ElGamal keys.", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                Text("Inbox data shown here is sample content only. No signed or protected mail transport is active.", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
             }
         }
         url.contains("darkbert.intel") -> {
@@ -3224,7 +3224,7 @@ fun WebpageHyperlink(text: String, url: String, onNavigate: (String) -> Unit) {
 }
 
 enum class CommsSubTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    GARLIC_CHAT("Garlic Chat", Icons.Default.Forum),
+    GARLIC_CHAT("Lab Chat", Icons.Default.Forum),
     GPS_EMULATOR("GPS Emulator", Icons.Default.LocationOn),
     TERMINAL_CRYPTOR("Terminal Cryptor", Icons.Default.Code)
 }
@@ -4743,7 +4743,7 @@ fun MessageCardItem(msg: SecureMessage) {
 enum class IdentitySubTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     MY_KEYRINGS("My Keyrings", Icons.Default.Key),
     PEER_KEYS("Peer Key Manager", Icons.Default.VpnKey),
-    INVITATION_LAB("Secure Invite", Icons.Default.Share)
+    INVITATION_LAB("Lab Invite", Icons.Default.Share)
 }
 
 @Composable
@@ -6926,7 +6926,7 @@ fun PeerRowItem(peer: DiscoveredPeer) {
 }
 
 enum class VpnVpsSubTab(val label: String) {
-    VPN("SECURE VPN"),
+    VPN("LAB VPN"),
     VPS("VPS / HOME NODE")
 }
 
@@ -6990,7 +6990,7 @@ fun VpnVpsScreen(
                 // VPN Tab
                 item {
                     Text(
-                        text = "VIRTUAL PRIVATE NETWORKS",
+                        text = "LAB VPN PROFILES",
                         style = MaterialTheme.typography.labelSmall,
                         color = CyberGreen,
                         fontWeight = FontWeight.Bold,
@@ -7006,9 +7006,9 @@ fun VpnVpsScreen(
                         VpnStatus.DISCONNECTED -> CyberRed
                     }
                     val statusLabel = when (vpnState.status) {
-                        VpnStatus.CONNECTED -> "SECURE END-TO-END ESCROW ACTIVE"
-                        VpnStatus.CONNECTING -> "ESTABLISHING HANDSHAKE..."
-                        VpnStatus.DISCONNECTED -> "ROUTING UNPROTECTED BY VPN"
+                        VpnStatus.CONNECTED -> "LAB PROFILE ACTIVE"
+                        VpnStatus.CONNECTING -> "STARTING LAB PROFILE..."
+                        VpnStatus.DISCONNECTED -> "LAB PROFILE IDLE"
                     }
                     Card(
                         colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
@@ -7114,7 +7114,7 @@ fun VpnVpsScreen(
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            text = if (isConnecting) "NEGOTIATING KEYS..." else if (isConnected) "TERMINATE VPN TUNNEL" else "INITIATE SECURE VPN",
+                            text = if (isConnecting) "STARTING LAB PROFILE..." else if (isConnected) "STOP LAB VPN PROFILE" else "START LAB VPN PROFILE",
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
@@ -7124,7 +7124,7 @@ fun VpnVpsScreen(
                 // VPN Configuration selector
                 item {
                     Text(
-                        text = "AVAILABLE SECURE ENDPOINTS",
+                        text = "AVAILABLE LAB ENDPOINTS",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextSecondary,
                         fontWeight = FontWeight.Bold,
@@ -7241,7 +7241,7 @@ fun VpnVpsScreen(
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                "While darkweb garlic networks encrypt routing layers between network peers, they do not mask your ISP's trace of initial gateway connections. We highly recommend utilizing Private VPN (ShadowTunnel) as it encapsulates your garlic packages inside quantum-resistant metadata packets, hiding network topology entirely from external eavesdroppers.",
+                                "These LAB VPN entries are local samples for UI testing only. They report profile names, timers, and counters, but they do not prove OS-level tunneling or external traffic protection.",
                                 fontSize = 10.sp,
                                 color = TextSecondary,
                                 lineHeight = 14.sp
