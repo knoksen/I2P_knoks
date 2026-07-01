@@ -33,7 +33,7 @@ on:
         default: false
         type: boolean
       confirm_apk_metadata_aligned:
-        description: "Confirm artifact metadata matches i2p-knoks-debug-apk debug contract"
+        description: "Confirm APK artifact and checksum metadata match the debug artifact contract"
         required: true
         default: false
         type: boolean
@@ -90,7 +90,7 @@ jobs:
             "Release notes include Known Limits"
             "Release notes include Non-goals"
             "Release-facing docs aligned"
-            "APK metadata aligned"
+            "APK artifact and checksum metadata aligned"
           )
 
           failed=0
