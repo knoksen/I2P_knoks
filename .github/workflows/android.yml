@@ -64,9 +64,9 @@ jobs:
             echo ""
             echo "To verify the downloaded APK, download the \`i2p-knoks-debug-apk-sha256\` artifact and run:"
             echo ""
-            echo "\`\`\`"
+            echo '```'
             echo "sha256sum -c app-debug.apk.sha256"
-            echo "\`\`\`"
+            echo '```'
             echo ""
             echo "Use this artifact together with docs/REAL_DEVICE_TESTING.md and docs/RELEASE_PROCESS.md."
           } >> "$GITHUB_STEP_SUMMARY"

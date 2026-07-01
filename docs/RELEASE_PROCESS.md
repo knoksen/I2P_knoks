@@ -138,9 +138,15 @@ app-debug.apk: OK
 **Windows (PowerShell):**
 
 ```powershell
-$expected = (Get-Content app-debug.apk.sha256 -Raw).Split(' ')[0]
+$expected = (Get-Content app-debug.apk.sha256 -Raw).Split(' ')[0].ToUpper()
 $actual = (Get-FileHash app-debug.apk -Algorithm SHA256).Hash
-if ($expected.ToUpper() -eq $actual) { "OK" } else { "MISMATCH" }
+if ($expected -eq $actual) {
+    "OK: $actual"
+} else {
+    "MISMATCH"
+    "Expected: $expected"
+    "Actual:   $actual"
+}
 ```
 
 If the hashes do not match, do not install or distribute the APK.
