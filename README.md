@@ -37,6 +37,7 @@ Current release baseline: `v0.3.0-real-alpha`.
 More detail: [Security Boundaries](docs/SECURITY_BOUNDARIES.md).
 
 Architecture overview: [Architecture](docs/ARCHITECTURE.md).
+Current hardening roadmap: [Roadmap](docs/ROADMAP.md).
 
 ## Real Alpha Testing
 
@@ -60,6 +61,8 @@ For real-alpha release verification, tagging, APK artifact handling, and release
 - [Release Process](docs/RELEASE_PROCESS.md)
 - [Changelog Template](docs/CHANGELOG_TEMPLATE.md)
 
+Debug APK artifacts are produced by the Android workflow as `i2p-knoks-debug-apk` for real-alpha testing.
+
 ## Endpoint Defaults
 
 Default local endpoint:
@@ -75,6 +78,8 @@ Desktop/LAN router mode requires the user to enter the real host. The app should
 ## Required Android Permissions
 
 - `INTERNET`: required to connect to the configured local or LAN I2P router services.
+- `ACCESS_NETWORK_STATE`: read-only network connectivity state permission retained in the current manifest.
+- Android permission boundary: [Android Permissions](docs/ANDROID_PERMISSIONS.md).
 
 No VPN service permission or background routing service is expected for the current real alpha.
 
