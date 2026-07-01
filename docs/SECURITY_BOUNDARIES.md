@@ -25,6 +25,8 @@ It does not mean the app provides anonymity by itself.
 
 Real I2P behavior requires a running I2P or i2pd router reachable from the Android device or emulator.
 
+Android permission scope is documented separately in [Android Permissions](ANDROID_PERMISSIONS.md).
+
 Default local services:
 
 | Service | Default |
