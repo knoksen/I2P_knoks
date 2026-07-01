@@ -38,8 +38,8 @@ on:
         default: false
         type: boolean
       rc_commit:
-        description: "Optional release candidate commit SHA or ref being reviewed"
-        required: false
+        description: "Release candidate commit SHA or ref being reviewed"
+        required: true
         type: string
 
 permissions:
@@ -54,7 +54,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.rc_commit || github.ref }}
+          ref: ${{ inputs.rc_commit }}
 
       - name: Ensure ripgrep is available
         shell: bash
@@ -112,7 +112,7 @@ jobs:
             echo "## Release Candidate Readiness"
             echo ""
             echo "- Release tag: \`${{ inputs.release_tag }}\`"
-            echo "- RC ref: \`${{ inputs.rc_commit || github.ref }}\`"
+            echo "- RC ref: \`${{ inputs.rc_commit }}\`"
             echo "- Checklist: \`docs/RELEASE_CANDIDATE_CHECKLIST.md\`"
             echo "- Release claim check: passed"
             echo "- Real section confirmed"
@@ -120,8 +120,9 @@ jobs:
             echo "- Known Limits section confirmed"
             echo "- Non-goals section confirmed"
             echo "- Release-facing docs aligned"
-            echo "- APK artifact metadata aligned"
+            echo "- APK artifact and checksum metadata aligned"
             echo "- Artifact contract: \`i2p-knoks-debug-apk\` from \`app/build/outputs/apk/debug/*.apk\` (debug, real-alpha testing only)"
+            echo "- Checksum contract: \`i2p-knoks-debug-apk-sha256\` containing \`app-debug.apk.sha256\`"
             echo ""
             echo "Required manual review areas:"
             echo "- Android permission boundary"
