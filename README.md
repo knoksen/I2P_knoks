@@ -1,131 +1,83 @@
-# I2P Knoks Browser
+# I2P Connect
 
-I2P Knoks Browser is an Android Jetpack Compose app for honest, measurable I2P setup, diagnostics, and proxy-backed page inspection.
+I2P Connect is a planned secure, beginner-friendly, local-first communication platform for digital autonomy on I2P.
 
-Current release baseline: `v0.3.0-real-alpha`.
+This repository is currently **foundation-only**. No runtime communication code is present yet. The first version establishes doctrine, security boundaries, onboarding direction, responsible-use language, validation scripts, and a safe roadmap before implementation begins.
 
-## Real In This Alpha
+## Current State
 
-- `RELEASE_REAL` mode hides lab-only VPN/VPS, chat, and peer-discovery modules from the main navigation.
-- Configurable I2P endpoint setup for an external I2P or i2pd router.
-- SAM bridge probing through the selected endpoint.
-- HTTP proxy fetches for `.i2p` URLs through the selected endpoint.
-- Page Inspector v2 for proxy-backed `.i2p` status, headers, redirects, errors, and safe text preview.
-- Local service diagnostics for SAM, HTTP proxy, and router console ports.
-- Router console launch using the configured endpoint.
-- SAM lifecycle uses step-specific timeout handling for connect, HELLO, destination generation, session creation, and name lookup.
-- Non-destructive Room migration from database v4 to v5.
+Supported claims in this repository today:
 
-## Still Lab Or Simulation
+- Project doctrine and contributor operating rules are documented.
+- Security boundaries and data handling restrictions are documented.
+- Beginner onboarding direction is documented.
+- Responsible-use expectations are documented.
+- Local validation scripts exist for release-facing claim checks.
+- No app runtime, message transport, identity store, or I2P router integration has been added yet.
 
-- Full WebView browsing is not implemented.
-- Page inspection uses the configured I2P HTTP proxy and does not execute HTML or JavaScript.
-- OS-level VPN tunneling is not implemented.
-- Secure chat is not audited cryptography and remains lab/demo functionality.
-- Peer discovery is generated lab data.
-- Embedded I2P router mode is not implemented.
-- Preview page rendering is local Compose content unless the UI explicitly shows a real HTTP proxy response.
+Unsupported claims today:
 
-## Security Boundaries
+- I2P Connect is not a Zoom clone.
+- I2P Connect does not promise real-time video.
+- I2P Connect does not promise guaranteed anonymity.
+- I2P Connect does not claim full E2EE, SASE, or zero-trust unless those properties are implemented, tested, documented, and release-gated in a future version.
+- I2P Connect does not store private I2P keys, private destinations, private messages, contact graphs, raw router logs, or deanonymizing metadata in cloud services.
 
-- This app does not provide OS-level VPN tunneling.
-- This app does not provide audited encrypted chat.
-- This app does not provide full browser isolation.
-- I2P traffic requires a running external I2P or i2pd router.
-- `RELEASE_REAL` means real diagnostics, SAM probing, and HTTP proxy interactions. It does not mean anonymity by itself.
+## Product Direction
 
-More detail: [Security Boundaries](docs/SECURITY_BOUNDARIES.md).
+The first runtime versions should prioritize:
 
-Architecture overview: [Architecture](docs/ARCHITECTURE.md).
-Current hardening roadmap: [Roadmap](docs/ROADMAP.md).
+- Private messages and encrypted audio notes after app-layer encryption is implemented and tested.
+- Contact identity and verified invites.
+- I2P readiness checks that explain measured local router state.
+- Beginner onboarding missions that make privacy tools understandable without fear marketing.
+- PBX-light and team routing only after the messaging foundation is real.
+- Push-to-talk and video only as clearly labeled experiments, with no promise of mainstream real-time video quality.
 
-## Real Alpha Testing
+## Safety Defaults
 
-Use the reproducible test plan before cutting or reviewing alpha releases:
+I2P Connect must prefer:
 
-- [Real Alpha Test Plan](docs/REAL_ALPHA_TEST_PLAN.md)
-- [Real Device Testing](docs/REAL_DEVICE_TESTING.md)
-- [Build Toolchain](docs/BUILD_TOOLCHAIN.md)
-- Local verification script: `.\scripts\local-release-verify.ps1`
+- Local-first storage for identities, contacts, messages, router diagnostics, and exports.
+- Least-privilege access to router APIs and local services.
+- Localhost-bound admin interfaces.
+- Sanitized logs that avoid private destinations, credentials, message bodies, sensitive headers, and raw router logs.
+- Clear separation between `RELEASE_REAL`, `LAB_SIMULATION`, and `FOUNDATION_ONLY` behavior.
+- Honest user-facing copy that says what is measured, what is experimental, and what is not implemented yet.
 
-## Real Device Testing
+## Repository Map
 
-For emulator and physical Android testing against Java I2P or i2pd, see:
+- `AGENTS.md`: operating contract for Codex and other coding agents.
+- `DIGITAL_AUTONOMY_DOCTRINE.md`: project doctrine and tone.
+- `docs/ARCHITECTURE.md`: planned architecture and release modes.
+- `docs/SECURITY_BOUNDARIES.md`: threat model, data classes, and prohibited storage.
+- `docs/ANDROID_PERMISSIONS.md`: future Android permission posture.
+- `docs/RESPONSIBLE_USE.md`: responsible-use and safety expectations.
+- `docs/ROADMAP.md`: safe implementation sequence.
+- `docs/CLAIMS_REGISTER.md`: supported and unsupported claim register.
+- `docs/VALIDATION.md`: validation script reference.
+- `product/03_UX_ONBOARDING_SPEC.md`: onboarding and beginner experience direction.
+- `scripts/check-release-claims.ps1`: release-facing claim guard.
+- `scripts/local-release-verify.ps1`: local foundation verification entrypoint.
 
-- [Real Device Testing](docs/REAL_DEVICE_TESTING.md)
+## Validation
 
-## Release Process
-
-For real-alpha release verification, tagging, APK artifact handling, and release notes, see:
-
-- [Release Process](docs/RELEASE_PROCESS.md)
-- [Release Candidate Checklist](docs/RELEASE_CANDIDATE_CHECKLIST.md)
-- [Changelog Template](docs/CHANGELOG_TEMPLATE.md)
-
-Debug APK artifacts are produced by the Android workflow as `i2p-knoks-debug-apk` for real-alpha testing.
-
-## Endpoint Defaults
-
-Default local endpoint:
-
-| Service | Address |
-| :--- | :--- |
-| SAM Bridge | `127.0.0.1:7656` |
-| HTTP Proxy | `127.0.0.1:4444` |
-| Router Console | `127.0.0.1:7657` |
-
-Desktop/LAN router mode requires the user to enter the real host. The app should not invent placeholder IP addresses for saved endpoint settings.
-
-## Required Android Permissions
-
-- `INTERNET`: required to connect to the configured local or LAN I2P router services.
-- Android permission boundary: [Android Permissions](docs/ANDROID_PERMISSIONS.md).
-
-No VPN service permission or background routing service is expected for the current real alpha.
-
-## Build
-
-Prerequisites:
-
-- JDK 21 or newer
-- Android SDK for the configured `compileSdk`
-- Included Gradle wrapper
-
-Recommended Windows JDK install:
-
-```powershell
-winget install EclipseAdoptium.Temurin.21.JDK
-```
-
-Verify locally:
-
-```powershell
-.\scripts\local-release-verify.ps1
-```
-
-Run the release-facing claim check:
+Run the claim guard:
 
 ```powershell
 .\scripts\check-release-claims.ps1
 ```
 
-## Release Notes Template
+Run the local foundation verification:
 
-Real:
+```powershell
+.\scripts\local-release-verify.ps1
+```
 
-- Endpoint setup
-- Diagnostics
-- SAM bridge detection/session work
-- HTTP proxy `.i2p` page inspection
+The foundation verification intentionally checks that no runtime application source has been added in this first phase.
 
-In active development:
+## Contributing
 
-- SAM lifecycle hardening with explicit HELLO, destination generation, STREAM session creation, close/reconnect, and failure states.
+Before changing product, app, onboarding, security, or release-facing behavior, read `AGENTS.md` and the required project docs listed there.
 
-Not real yet:
-
-- Full WebView browsing
-- VPN/VPS
-- Secure chat
-- Peer discovery
-- Embedded router
+Keep changes small, testable, and honest. Release-facing language must be grounded in measured runtime state, persisted user configuration, tested implementation, or clearly labeled lab/demo behavior.

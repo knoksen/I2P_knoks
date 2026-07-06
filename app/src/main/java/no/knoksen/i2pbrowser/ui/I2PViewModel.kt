@@ -163,7 +163,8 @@ class I2PViewModel @JvmOverloads constructor(
         logDao = db.logDao(),
         trustedKeyDao = db.trustedKeyDao(),
         contactDao = db.contactDao(),
-        appSettingsDao = db.appSettingsDao()
+        appSettingsDao = db.appSettingsDao(),
+        connectIdentityDao = db.connectIdentityDao()
     )
 
     // Exposed States

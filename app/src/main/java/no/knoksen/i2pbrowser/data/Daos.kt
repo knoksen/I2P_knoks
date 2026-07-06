@@ -96,4 +96,24 @@ interface AppSettingsDao {
     suspend fun upsertSettings(settings: AppSettingsEntity)
 }
 
+@Dao
+interface ConnectIdentityDao {
+    @Query("SELECT * FROM connect_identities ORDER BY createdAtMillis DESC")
+    fun getAllConnectIdentities(): Flow<List<ConnectIdentity>>
+
+    @Query("SELECT * FROM connect_identities WHERE id = :id LIMIT 1")
+    suspend fun getConnectIdentityById(id: Long): ConnectIdentity?
+
+    @Query("SELECT * FROM connect_identities WHERE fingerprint = :fingerprint LIMIT 1")
+    suspend fun getConnectIdentityByFingerprint(fingerprint: String): ConnectIdentity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertConnectIdentity(identity: ConnectIdentity): Long
+
+    @Update
+    suspend fun updateConnectIdentity(identity: ConnectIdentity)
+
+    @Delete
+    suspend fun deleteConnectIdentity(identity: ConnectIdentity)
+}
 

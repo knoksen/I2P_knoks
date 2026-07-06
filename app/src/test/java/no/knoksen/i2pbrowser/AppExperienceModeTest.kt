@@ -1,10 +1,17 @@
 package no.knoksen.i2pbrowser
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class AppExperienceModeTest {
     @Test
     fun `release mode hides lab modules without real SAM identity`() {
@@ -43,7 +50,9 @@ class AppExperienceModeTest {
 
     @Test
     fun `lab-only tabs are clearly labeled`() {
-        assertTrue(AppTab.VPN_VPS.label.startsWith("LAB"))
-        assertTrue(AppTab.COMMS.label.startsWith("LAB"))
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        assertTrue(context.getString(AppTab.VPN_VPS.labelRes).startsWith("LAB"))
+        assertTrue(context.getString(AppTab.COMMS.labelRes).startsWith("LAB"))
     }
 }

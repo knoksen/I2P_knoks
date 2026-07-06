@@ -15,7 +15,8 @@ class I2PRepository(
     private val logDao: LogDao,
     private val trustedKeyDao: TrustedKeyDao,
     private val contactDao: ContactDao,
-    private val appSettingsDao: AppSettingsDao
+    private val appSettingsDao: AppSettingsDao,
+    private val connectIdentityDao: ConnectIdentityDao
 ) {
     val allBookmarks: Flow<List<Bookmark>> = bookmarkDao.getAllBookmarks()
     val allIdentities: Flow<List<Identity>> = identityDao.getAllIdentities()
@@ -23,6 +24,7 @@ class I2PRepository(
     val recentLogs: Flow<List<LogEntry>> = logDao.getRecentLogs()
     val allTrustedKeys: Flow<List<TrustedKey>> = trustedKeyDao.getAllTrustedKeys()
     val allContacts: Flow<List<Contact>> = contactDao.getAllContacts()
+    val allConnectIdentities: Flow<List<ConnectIdentity>> = connectIdentityDao.getAllConnectIdentities()
     val endpointConfig: Flow<I2pEndpointConfig> = appSettingsDao.getSettings()
         .map { settings -> settings?.toEndpointConfig() ?: I2pEndpointConfig.LOCAL_ANDROID_ROUTER }
 
@@ -67,6 +69,34 @@ class I2PRepository(
 
     suspend fun clearAllMessages() {
         secureMessageDao.clearAllMessages()
+    }
+
+    suspend fun createConnectIdentity(displayName: String, publicDestination: String): ConnectIdentity {
+        val identity = ConnectIdentityFactory.createLocal(
+            displayName = displayName,
+            publicDestination = publicDestination
+        )
+        val id = connectIdentityDao.insertConnectIdentity(identity)
+        val stored = identity.copy(id = id)
+        addLog("CONNECT_ID", "Created local I2P Connect identity ${stored.fingerprint}. Cloud sync disabled.", "SUCCESS")
+        return stored
+    }
+
+    fun exportConnectIdentityPublic(identity: ConnectIdentity): String {
+        return ConnectIdentityExportCodec.encodePublic(identity)
+    }
+
+    suspend fun importConnectIdentityPublic(exportText: String): ConnectIdentityImportResult {
+        val result = ConnectIdentityExportCodec.decodePublic(exportText)
+        if (result is ConnectIdentityImportResult.Success) {
+            val id = connectIdentityDao.insertConnectIdentity(result.identity)
+            addLog("CONNECT_ID", "Imported public-only I2P Connect identity ${result.identity.fingerprint}.", "INFO")
+            return result.copy(identity = result.identity.copy(id = id))
+        }
+        if (result is ConnectIdentityImportResult.Failure) {
+            addLog("CONNECT_ID", "Public identity import failed: ${result.reason}", "WARN")
+        }
+        return result
     }
 
     suspend fun sendMessage(sender: String, recipient: String, body: String) {
@@ -275,7 +305,7 @@ internal object LogSanitizer {
     private const val MAX_LOG_MESSAGE_LENGTH = 500
     private const val REDACTED = "[redacted]"
     private const val SENSITIVE_FIELD_NAMES =
-        "Set-Cookie|Authorization|Cookie|PRIV|privateDestination|privateKeyBase64|apiKey|GEMINI_API_KEY|password|credential|secret|token|body|messageBody|decryptedBody|plaintext"
+        "Set-Cookie|Authorization|Cookie|PRIV|privateDestination|privateKeyBase64|privateMaterialRef|privateAppKey|apiKey|GEMINI_API_KEY|password|credential|secret|token|body|messageBody|decryptedBody|plaintext"
 
     private val sensitivePatterns = listOf(
         Regex("""(?is)\b($SENSITIVE_FIELD_NAMES)\s*[:=]\s*("[^"]*"|'[^']*'|.*?)(?=\s+\b(?:$SENSITIVE_FIELD_NAMES)\s*[:=]|$)"""),

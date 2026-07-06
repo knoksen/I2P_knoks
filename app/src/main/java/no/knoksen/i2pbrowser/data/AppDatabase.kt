@@ -15,9 +15,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LogEntry::class,
         TrustedKey::class,
         Contact::class,
-        AppSettingsEntity::class
+        AppSettingsEntity::class,
+        ConnectIdentity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -28,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun trustedKeyDao(): TrustedKeyDao
     abstract fun contactDao(): ContactDao
     abstract fun appSettingsDao(): AppSettingsDao
+    abstract fun connectIdentityDao(): ConnectIdentityDao
 
     companion object {
         @Volatile
@@ -40,7 +42,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "i2p_browser_database"
                 )
-                .addMigrations(MIGRATION_4_5)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
                 .build()
                 INSTANCE = instance
                 instance
@@ -51,6 +53,13 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(APP_SETTINGS_CREATE_SQL)
                 db.execSQL(APP_SETTINGS_DEFAULT_INSERT_SQL)
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(CONNECT_IDENTITIES_CREATE_SQL)
+                db.execSQL(CONNECT_IDENTITIES_FINGERPRINT_INDEX_SQL)
             }
         }
     }
@@ -65,6 +74,27 @@ CREATE TABLE IF NOT EXISTS app_settings (
     httpProxyPort INTEGER NOT NULL,
     routerConsolePort INTEGER NOT NULL
 )
+"""
+
+const val CONNECT_IDENTITIES_CREATE_SQL = """
+CREATE TABLE IF NOT EXISTS connect_identities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    displayName TEXT NOT NULL,
+    publicDestination TEXT NOT NULL,
+    publicAppKey TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    privateMaterialRef TEXT NOT NULL,
+    privateMaterialState TEXT NOT NULL,
+    origin TEXT NOT NULL,
+    cloudSyncEnabled INTEGER NOT NULL DEFAULT 0,
+    createdAtMillis INTEGER NOT NULL,
+    updatedAtMillis INTEGER NOT NULL
+)
+"""
+
+const val CONNECT_IDENTITIES_FINGERPRINT_INDEX_SQL = """
+CREATE UNIQUE INDEX IF NOT EXISTS index_connect_identities_fingerprint
+ON connect_identities (fingerprint)
 """
 
 const val APP_SETTINGS_DEFAULT_INSERT_SQL = """

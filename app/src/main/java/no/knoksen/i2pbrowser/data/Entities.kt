@@ -1,6 +1,7 @@
 package no.knoksen.i2pbrowser.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "bookmarks")
@@ -75,5 +76,33 @@ data class AppSettingsEntity(
     val httpProxyPort: Int = 4444,
     val routerConsolePort: Int = 7657
 )
+
+@Entity(
+    tableName = "connect_identities",
+    indices = [Index(value = ["fingerprint"], unique = true)]
+)
+data class ConnectIdentity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val displayName: String,
+    val publicDestination: String,
+    val publicAppKey: String,
+    val fingerprint: String,
+    val privateMaterialRef: String,
+    val privateMaterialState: String = ConnectIdentityPrivateMaterialState.PROTECTED_REFERENCE,
+    val origin: String = ConnectIdentityOrigin.LOCAL,
+    val cloudSyncEnabled: Boolean = false,
+    val createdAtMillis: Long = System.currentTimeMillis(),
+    val updatedAtMillis: Long = createdAtMillis
+)
+
+object ConnectIdentityPrivateMaterialState {
+    const val PROTECTED_REFERENCE = "PROTECTED_REFERENCE"
+    const val MISSING_PRIVATE_MATERIAL = "MISSING_PRIVATE_MATERIAL"
+}
+
+object ConnectIdentityOrigin {
+    const val LOCAL = "LOCAL"
+    const val IMPORTED_PUBLIC_ONLY = "IMPORTED_PUBLIC_ONLY"
+}
 
 

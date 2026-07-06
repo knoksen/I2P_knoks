@@ -44,6 +44,20 @@ class LogSanitizerTest {
     }
 
     @Test
+    fun `redacts connect identity private material references`() {
+        val sanitized = LogSanitizer.sanitize(
+            "privateMaterialRef=local-only-ref:abc123 privateAppKey='app-secret' privateDestination=hidden"
+        )
+
+        assertFalse(sanitized.contains("local-only-ref:abc123"))
+        assertFalse(sanitized.contains("app-secret"))
+        assertFalse(sanitized.contains("hidden"))
+        assertTrue(sanitized.contains("privateMaterialRef=[redacted]"))
+        assertTrue(sanitized.contains("privateAppKey=[redacted]"))
+        assertTrue(sanitized.contains("privateDestination=[redacted]"))
+    }
+
+    @Test
     fun `caps long log messages`() {
         val sanitized = LogSanitizer.sanitize("x".repeat(800))
 

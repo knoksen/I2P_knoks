@@ -30,13 +30,15 @@ import androidx.compose.foundation.border
 import kotlinx.coroutines.launch
 import no.knoksen.i2pbrowser.ui.*
 import no.knoksen.i2pbrowser.ui.theme.*
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
 
-enum class AppTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    ROUTER("Router", Icons.Default.Dns),
-    BROWSER("Browser", Icons.Default.Language),
-    VPN_VPS("LAB VPN/VPS", Icons.Default.VpnLock),
-    COMMS("LAB Chat", Icons.Default.Forum),
-    IDENTITY("Identity", Icons.Default.Fingerprint)
+enum class AppTab(@StringRes val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    ROUTER(R.string.tab_router, Icons.Default.Dns),
+    BROWSER(R.string.tab_browser, Icons.Default.Language),
+    VPN_VPS(R.string.tab_vpn_vps, Icons.Default.VpnLock),
+    COMMS(R.string.tab_comms, Icons.Default.Forum),
+    IDENTITY(R.string.tab_identity, Icons.Default.Fingerprint)
 }
 
 fun visibleAppTabs(
@@ -116,21 +118,21 @@ class MainActivity : ComponentActivity() {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
                                             Icons.Default.Security,
-                                            contentDescription = "Connection Status",
+                                            contentDescription = stringResource(R.string.cd_connection_status),
                                             tint = CyberGreen,
                                             modifier = Modifier.size(28.dp)
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column {
                                             Text(
-                                                "I2P SHADOW",
+                                                stringResource(R.string.app_title),
                                                 fontWeight = FontWeight.ExtraBold,
                                                 fontSize = 18.sp,
                                                 color = TextPrimary,
                                                 letterSpacing = 1.5.sp
                                             )
                                             Text(
-                                                "LOCAL ROUTER STATUS",
+                                                stringResource(R.string.router_status_subtitle),
                                                 fontSize = 9.sp,
                                                 color = CyberGreen,
                                                 fontWeight = FontWeight.Bold,
@@ -167,7 +169,7 @@ class MainActivity : ComponentActivity() {
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
-                                                    if (routerState.isRealI2p) "SAM_READY" else if (routerState.isConnected) "SIMULATION" else "OFFLINE",
+                                                    if (routerState.isRealI2p) stringResource(R.string.status_sam_ready) else if (routerState.isConnected) stringResource(R.string.status_simulation) else stringResource(R.string.status_offline),
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = if (routerState.isRealI2p) CyberGreen else if (routerState.isConnected) CyberOrange else CyberRed,
                                                     fontWeight = FontWeight.Bold
@@ -181,7 +183,7 @@ class MainActivity : ComponentActivity() {
                                         ) {
                                             Icon(
                                                 Icons.Default.Settings,
-                                                contentDescription = "Configure Proxy Settings",
+                                                contentDescription = stringResource(R.string.cd_configure_proxy),
                                                 tint = CyberBlue,
                                                 modifier = Modifier.size(24.dp)
                                             )
@@ -197,7 +199,7 @@ class MainActivity : ComponentActivity() {
                                         ) {
                                             Icon(
                                                 Icons.Default.History,
-                                                contentDescription = "View Inspection History",
+                                                contentDescription = stringResource(R.string.cd_view_history),
                                                 tint = CyberBlue,
                                                 modifier = Modifier.size(24.dp)
                                             )
@@ -223,13 +225,13 @@ class MainActivity : ComponentActivity() {
                                         icon = {
                                             Icon(
                                                 tab.icon,
-                                                contentDescription = tab.label,
+                                                contentDescription = stringResource(tab.labelRes),
                                                 tint = if (isSelected) CyberGreen else TextSecondary
                                             )
                                         },
                                         label = {
                                             Text(
-                                                tab.label,
+                                                stringResource(tab.labelRes),
                                                 color = if (isSelected) CyberGreen else TextSecondary,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                                 style = MaterialTheme.typography.labelSmall
@@ -294,14 +296,14 @@ fun DrawerContent(
             ) {
                 Column {
                     Text(
-                        "SESSION MONITOR",
+                        stringResource(R.string.drawer_title),
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
                         color = CyberBlue,
                         letterSpacing = 1.sp
                     )
                     Text(
-                        "Inspection history and endpoint state",
+                        stringResource(R.string.drawer_subtitle),
                         fontSize = 11.sp,
                         color = TextSecondary
                     )
@@ -309,7 +311,7 @@ fun DrawerContent(
                 IconButton(onClick = onClose) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Close Sidebar",
+                        contentDescription = stringResource(R.string.cd_close_sidebar),
                         tint = TextSecondary
                     )
                 }
@@ -332,9 +334,9 @@ fun DrawerContent(
                         modifier = Modifier.weight(1f).height(36.dp),
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Simulate Node", tint = CyberBlue, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.btn_simulate_node), tint = CyberBlue, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Simulate Node", fontSize = 11.sp, color = CyberBlue, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.btn_simulate_node), fontSize = 11.sp, color = CyberBlue, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -346,9 +348,9 @@ fun DrawerContent(
                     modifier = Modifier.weight(1f).height(36.dp),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = "Clear History", tint = CyberRed, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_clear_history), tint = CyberRed, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Clear Logs", fontSize = 11.sp, color = CyberRed, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.btn_clear_logs), fontSize = 11.sp, color = CyberRed, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -361,13 +363,13 @@ fun DrawerContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "INSPECTION HISTORY",
+                    stringResource(R.string.history_title),
                     style = MaterialTheme.typography.labelSmall,
                     color = TextSecondary,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "${accessedNodes.size} entries",
+                    stringResource(R.string.history_entries_count, accessedNodes.size),
                     style = MaterialTheme.typography.labelSmall,
                     color = CyberGreen,
                     fontWeight = FontWeight.Bold
@@ -389,13 +391,13 @@ fun DrawerContent(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             Icons.Default.History,
-                            contentDescription = "No records",
+                            contentDescription = stringResource(R.string.cd_no_records),
                             tint = TextSecondary.copy(alpha = 0.5f),
                             modifier = Modifier.size(32.dp)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            "No inspection history yet.",
+                            stringResource(R.string.no_history_message),
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSecondary,
                             textAlign = TextAlign.Center
@@ -434,7 +436,7 @@ fun DrawerContent(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            "LOCAL INSPECTION LOG",
+                            stringResource(R.string.footer_log_title),
                             style = MaterialTheme.typography.labelSmall,
                             color = CyberGreen,
                             fontWeight = FontWeight.Bold
@@ -442,7 +444,7 @@ fun DrawerContent(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Entries reflect app navigation and page-inspector results. They do not prove anonymity or full-device routing.",
+                        stringResource(R.string.footer_log_description),
                         style = MaterialTheme.typography.labelSmall,
                         color = TextSecondary,
                         lineHeight = 12.sp
@@ -502,7 +504,7 @@ fun NodeHistoryItem(node: AccessedNode) {
             ) {
                 val isRealI2p = node.connectionStatus == "REAL_I2P"
                 val statusColor = if (isRealI2p) CyberGreen else CyberOrange
-                val statusText = if (isRealI2p) "REAL I2P" else "SIMULATED PREVIEW"
+                val statusText = if (isRealI2p) stringResource(R.string.status_real_i2p) else stringResource(R.string.status_simulated_preview)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
@@ -521,7 +523,7 @@ fun NodeHistoryItem(node: AccessedNode) {
                 // Quick lock/unlocked icon indicator
                 Icon(
                     imageVector = if (isRealI2p) Icons.Default.Lock else Icons.Default.Visibility,
-                    contentDescription = "Routing Status",
+                    contentDescription = stringResource(R.string.cd_routing_status),
                     tint = statusColor.copy(alpha = 0.7f),
                     modifier = Modifier.size(12.dp)
                 )
@@ -544,13 +546,13 @@ fun GlobalVpnStatusBar(
     }
     
     val statusText = when (vpnState.status) {
-        VpnStatus.CONNECTED -> "LAB CONNECTED • ${vpnState.selectedVpn}"
-        VpnStatus.CONNECTING -> "LAB CONNECTING..."
-        VpnStatus.DISCONNECTED -> "LAB IDLE"
+        VpnStatus.CONNECTED -> stringResource(R.string.vpn_status_connected, vpnState.selectedVpn)
+        VpnStatus.CONNECTING -> stringResource(R.string.vpn_status_connecting)
+        VpnStatus.DISCONNECTED -> stringResource(R.string.vpn_status_idle)
     }
     
     val statsText = if (vpnState.status == VpnStatus.CONNECTED) {
-        String.format(java.util.Locale.US, " | %.2f MB | %02d:%02d", 
+        stringResource(R.string.vpn_stats, 
             vpnState.bytesTransmitted / (1024f * 1024f), 
             vpnState.connectedDurationSeconds / 60, 
             vpnState.connectedDurationSeconds % 60)
@@ -571,12 +573,12 @@ fun GlobalVpnStatusBar(
         ) {
             Icon(
                 imageVector = Icons.Default.VpnLock,
-                contentDescription = "Lab VPN Status Indicator",
+                contentDescription = stringResource(R.string.cd_vpn_status_indicator),
                 tint = statusColor,
                 modifier = Modifier.size(14.dp)
             )
             Text(
-                text = "LAB VPN Status:",
+                text = stringResource(R.string.vpn_status_label),
                 fontSize = 10.sp,
                 color = TextSecondary,
                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
@@ -596,7 +598,7 @@ fun GlobalVpnStatusBar(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = if (vpnState.status == VpnStatus.CONNECTED) "LAB ACTIVE" else "LAB IDLE",
+                text = if (vpnState.status == VpnStatus.CONNECTED) stringResource(R.string.vpn_active) else stringResource(R.string.vpn_status_idle),
                 fontSize = 8.sp,
                 color = if (vpnState.status == VpnStatus.CONNECTED) CyberGreen else CyberOrange,
                 fontWeight = FontWeight.ExtraBold,
@@ -607,7 +609,7 @@ fun GlobalVpnStatusBar(
             )
             Icon(
                 imageVector = Icons.Default.ChevronRight,
-                contentDescription = "Lab VPN Settings Link",
+                contentDescription = stringResource(R.string.cd_vpn_settings_link),
                 tint = TextSecondary,
                 modifier = Modifier.size(12.dp)
             )
