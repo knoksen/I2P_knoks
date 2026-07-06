@@ -3774,6 +3774,68 @@ fun GarlicChatTab(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
+                    if (messageInput.isNotEmpty() && activeIdentity != null) {
+                        var isExpandedCipher by remember { mutableStateOf(true) }
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(CyberBlack, RoundedCornerShape(4.dp))
+                                .border(0.5.dp, CyberBorder.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                                .padding(6.dp)
+                                .clickable { isExpandedCipher = !isExpandedCipher }
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.EnhancedEncryption,
+                                        contentDescription = null,
+                                        tint = CyberGreen,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Text(
+                                        text = "LIVE GARLIC CLOVE CIPHER PREVIEW",
+                                        fontSize = 8.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = CyberGreen,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Icon(
+                                    imageVector = if (isExpandedCipher) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                    contentDescription = null,
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                            if (isExpandedCipher) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                val mockCiphertext = remember(messageInput) {
+                                    val inputBytes = messageInput.toByteArray()
+                                    val hashed = inputBytes.fold(0) { acc, b -> acc + b }
+                                    val base64CharList = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+                                    val fakeSignature = (1..16).map { base64CharList[(hashed + it) % 64] }.joinToString("")
+                                    "HYBRID-RSA-AES:$fakeSignature...$fakeSignature"
+                                }
+                                Text(
+                                    text = mockCiphertext,
+                                    fontSize = 8.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = TextSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     Button(
                         onClick = {
                             if (messageInput.isNotEmpty()) {
@@ -3811,6 +3873,43 @@ fun GarlicChatTab(
                             },
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Button(
+                        onClick = {
+                            val simulatedPrompts = listOf(
+                                "Handshake success. Ephemeral session parameters matching.",
+                                "ALERT: Detected multi-hop routing delay on route tunnel 0xFA4B.",
+                                "Transmission complete. Cleared all local router state caches.",
+                                "Acknowledged. Standard garlic clove received & verified via private RSA key."
+                            )
+                            viewModel.receiveEncryptedMessageSimulation(contact, simulatedPrompts.random())
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = CyberDarkSurface,
+                            contentColor = CyberOrange
+                        ),
+                        border = BorderStroke(1.dp, CyberOrange.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(26.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CallReceived,
+                            contentDescription = null,
+                            modifier = Modifier.size(10.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            "SIMULATE INCOMING CRYPTO BLOCK", 
+                            fontSize = 8.sp, 
+                            fontWeight = FontWeight.Bold, 
+                            fontFamily = FontFamily.Monospace
                         )
                     }
                 }
@@ -4323,6 +4422,18 @@ fun ContactMessageBubble(
     val isOutgoing = !msg.isIncoming
     val contactColor = Color(android.graphics.Color.parseColor(contact.avatarColorHex))
 
+    // Animated decryption states
+    val coroutineScope = rememberCoroutineScope()
+    var decryptionProgress by remember { mutableStateOf(-1f) } // -1f means idle, 0f..1f is active decryption
+    var decryptionStageText by remember { mutableStateOf("") }
+    var decryptionError by remember { mutableStateOf<String?>(null) }
+    var animatedDecryptedText by remember { mutableStateOf("") }
+
+    val activeId by viewModel.activeIdentity.collectAsState()
+
+    // Character scrambling definition
+    val scrambleChars = "A8F3C7E0B1154C8E79FD3C1A4038A8E2D409FEC9A10237E8BBDD0C5E71029C!@#$%^&*()_+{}|:<>?[];',./"
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -4395,7 +4506,9 @@ fun ContactMessageBubble(
                         .border(
                             width = 1.dp,
                             color = if (isOutgoing) CyberGreen.copy(alpha = 0.3f) else {
-                                if (msg.isDecrypted) CyberPurple.copy(alpha = 0.3f) else CyberRed.copy(alpha = 0.4f)
+                                if (msg.isDecrypted) CyberPurple.copy(alpha = 0.3f) else {
+                                    if (decryptionProgress >= 0f) CyberOrange.copy(alpha = 0.6f) else CyberRed.copy(alpha = 0.4f)
+                                }
                             },
                             shape = RoundedCornerShape(
                                 topStart = 10.dp,
@@ -4432,7 +4545,88 @@ fun ContactMessageBubble(
                                     color = CyberGreen
                                 )
                             }
+                        } else if (decryptionProgress >= 0f) {
+                            // ACTIVE DECRYPTION SIMULATOR PANEL
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Sync,
+                                        contentDescription = "Decrypting",
+                                        tint = CyberOrange,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        text = "DECRYPTING GARLIC PACKET...",
+                                        fontSize = 8.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        color = CyberOrange
+                                    )
+                                }
+
+                                // Interactive Progress Bar
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(4.dp)
+                                        .background(CyberBlack, RoundedCornerShape(2.dp))
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .fillMaxWidth(decryptionProgress)
+                                            .background(
+                                                Brush.horizontalGradient(listOf(CyberOrange, CyberYellow)),
+                                                RoundedCornerShape(2.dp)
+                                            )
+                                    )
+                                }
+
+                                Text(
+                                    text = decryptionStageText,
+                                    fontSize = 7.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = CyberYellow,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                // Live descrambling ciphertext preview
+                                Box(
+                                    modifier = Modifier
+                                        .background(CyberBlack, RoundedCornerShape(4.dp))
+                                        .border(0.5.dp, CyberBorder, RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                                        .fillMaxWidth()
+                                ) {
+                                    val plainLen = animatedDecryptedText.length
+                                    val decryptedCount = (plainLen * decryptionProgress).toInt().coerceIn(0, plainLen)
+                                    val leftToScramble = plainLen - decryptedCount
+                                    val displayString = remember(decryptionProgress, animatedDecryptedText) {
+                                        val decPart = animatedDecryptedText.take(decryptedCount)
+                                        val scrPart = (1..leftToScramble).map { scrambleChars.random() }.joinToString("")
+                                        decPart + scrPart
+                                    }
+
+                                    Text(
+                                        text = displayString,
+                                        fontSize = 9.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = CyberOrange,
+                                        lineHeight = 11.sp,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.align(Alignment.Center)
+                                    )
+                                }
+                            }
                         } else {
+                            // IDLE ENCRYPTED CIPHER BLOCK STATE
                             val displayPayload = remember(msg.encryptedPayload) {
                                 if (msg.encryptedPayload.length > 28) {
                                     msg.encryptedPayload.take(24) + "..."
@@ -4480,9 +4674,56 @@ fun ContactMessageBubble(
                                         modifier = Modifier.align(Alignment.Center)
                                     )
                                 }
+
+                                if (decryptionError != null) {
+                                    Text(
+                                        text = decryptionError!!,
+                                        fontSize = 7.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = CyberRed,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                }
                                 
                                 Button(
-                                    onClick = { viewModel.decryptSecureMessage(msg) },
+                                    onClick = {
+                                        val id = activeId
+                                        if (id == null) {
+                                            decryptionError = "ERROR: No active profile identity keypair. Create one first!"
+                                            return@Button
+                                        }
+                                        decryptionError = null
+                                        decryptionProgress = 0f
+                                        decryptionStageText = "1. MATCHING SESSION TAG..."
+                                        
+                                        // Pre-calculate target plaintext so we can descramble into it
+                                        val decrypted = decryptHybrid(msg.encryptedPayload, id.privateKeyBase64)
+                                        animatedDecryptedText = if (decrypted.startsWith("ERROR")) {
+                                            "[DECRYPTION_SIGNATURE_MISMATCH_ERROR]"
+                                        } else {
+                                            decrypted
+                                        }
+
+                                        coroutineScope.launch {
+                                            // Step-by-step progress animation
+                                            val steps = 50
+                                            for (i in 1..steps) {
+                                                delay(40) // 50 * 40ms = 2000ms (2 seconds) total duration
+                                                decryptionProgress = i.toFloat() / steps
+                                                
+                                                decryptionStageText = when {
+                                                    decryptionProgress < 0.25f -> "1. MATCHING SESSION TAG..."
+                                                    decryptionProgress < 0.50f -> "2. DIFFIE-HELLMAN KEY VALIDATION..."
+                                                    decryptionProgress < 0.75f -> "3. DECRYPTING AES-256 GARLIC LAYER..."
+                                                    else -> "4. EXTRACTING PAYLOAD CLOVE..."
+                                                }
+                                            }
+                                            // Finish and commit to Database
+                                            viewModel.decryptSecureMessage(msg)
+                                            decryptionProgress = -1f
+                                        }
+                                    },
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = CyberRed.copy(alpha = 0.15f),
                                         contentColor = CyberRed
@@ -6945,7 +7186,7 @@ fun GarlicRoutingPathVisualizer(
     isConnected: Boolean,
     isConnecting: Boolean
 ) {
-    var selectedTab by remember { mutableStateOf(0) } // 0: Linear Flow Path, 1: Force-Directed Topology
+    var selectedTab by remember { mutableStateOf(0) } // 0: Linear Path, 1: Network Topology, 2: Garlic Simulation
     var healthThreshold by remember { mutableStateOf(70f) } // Default 70% connection health threshold
 
     val infiniteTransition = rememberInfiniteTransition(label = "garlic_flow")
@@ -7111,7 +7352,7 @@ fun GarlicRoutingPathVisualizer(
                     .padding(3.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                val tabs = listOf("Linear Flow Path", "Force-Directed Topology")
+                val tabs = listOf("Linear Path", "Network Topology", "Garlic Simulation")
                 tabs.forEachIndexed { idx, title ->
                     val selected = selectedTab == idx
                     Box(
@@ -7371,7 +7612,7 @@ fun GarlicRoutingPathVisualizer(
                         }
                     }
                 }
-            } else {
+            } else if (selectedTab == 1) {
                 // Tab 1: Interactive Force-Directed Network Graph
                 ForceDirectedCircuitGraph(
                     nodes = nodes,
@@ -7387,6 +7628,11 @@ fun GarlicRoutingPathVisualizer(
                 ThresholdSlider(
                     thresholdValue = healthThreshold,
                     onValueChange = { healthThreshold = it }
+                )
+            } else {
+                // Tab 2: Full Animated Garlic Routing Simulation Dashboard
+                GarlicRoutingSimulatorComponent(
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
 

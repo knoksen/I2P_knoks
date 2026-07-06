@@ -969,6 +969,33 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun receiveEncryptedMessageSimulation(contact: Contact, text: String) {
+        viewModelScope.launch {
+            val currentSender = when (contact.type) {
+                "GOOGLE_CHAT" -> _activeIdentity.value?.name?.lowercase()?.replace(" ", "")?.let { "$it@gmail.com" } ?: "anon.user@gmail.com"
+                "SMS" -> "+155598765"
+                else -> _activeIdentity.value?.i2pAddress ?: "anon.i2p"
+            }
+
+            val myPublicKey = _activeIdentity.value?.publicKeyBase64
+                ?: getOrCreateValidKeysForPeer("My Identity", "").first
+            
+            val realIncomingEncryptedPayload = encryptHybrid(text, myPublicKey)
+
+            repository.addLog("CRYPT", "Simulated incoming secure clove received from ${contact.name}.", "INFO")
+            
+            val incomingMsg = SecureMessage(
+                senderAddress = contact.address,
+                recipientAddress = currentSender,
+                encryptedPayload = realIncomingEncryptedPayload,
+                isIncoming = true,
+                isDecrypted = false,
+                decryptedBody = null
+            )
+            db.secureMessageDao().insertMessage(incomingMsg)
+        }
+    }
+
     fun decryptSecureMessage(msg: SecureMessage) {
         val activeId = _activeIdentity.value
         if (activeId == null) {
