@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "I2P Knoks Browser"
+rootProject.name = "My Application"
 
 include(":app")

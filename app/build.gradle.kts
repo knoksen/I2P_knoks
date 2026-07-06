@@ -10,31 +10,32 @@ plugins {
 }
 
 android {
-  namespace = "no.knoksen.i2pbrowser"
+  namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "no.knoksen.i2pbrowser"
+    applicationId = "com.aistudio.i2pbrowser.qyhdw"
     minSdk = 24
     targetSdk = 36
-    versionCode = 4
-    versionName = "0.3.1-dev"
+    versionCode = 1
+    versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
-  val expectedReleaseKeystore =
-    System.getenv("KEYSTORE_PATH")?.let { file(it) } ?: rootProject.file("my-upload-key.jks")
-  val hasReleaseKeystore = expectedReleaseKeystore.exists()
-
   signingConfigs {
-    if (hasReleaseKeystore) {
-      create("release") {
-        storeFile = expectedReleaseKeystore
-        storePassword = System.getenv("STORE_PASSWORD")
-        keyAlias = "upload"
-        keyPassword = System.getenv("KEY_PASSWORD")
-      }
+    create("release") {
+      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
+      storeFile = file(keystorePath)
+      storePassword = System.getenv("STORE_PASSWORD")
+      keyAlias = "upload"
+      keyPassword = System.getenv("KEY_PASSWORD")
+    }
+    create("debugConfig") {
+      storeFile = file("${rootDir}/debug.keystore")
+      storePassword = "android"
+      keyAlias = "androiddebugkey"
+      keyPassword = "android"
     }
   }
 
@@ -43,12 +44,10 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      if (hasReleaseKeystore) {
-        signingConfig = signingConfigs.getByName("release")
-      }
+      signingConfig = signingConfigs.getByName("release")
     }
     debug {
-      signingConfig = signingConfigs.getByName("debug")
+      signingConfig = signingConfigs.getByName("debugConfig")
     }
   }
   compileOptions {
