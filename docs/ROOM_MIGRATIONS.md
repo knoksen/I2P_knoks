@@ -32,7 +32,7 @@ Historical schemas must not be regenerated from current entity definitions. They
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `4.json` | `4` | Generated from Git commit `5beea81` (`Refactor app into honest SAM-testable I2P MVP`). | `4 -> 5` | 2026-07-07 | Oldest currently supported migration origin. |
 | `5.json` | `5` | Generated from Git commit `43cca41` (`Add Room migration for endpoint settings`). | `5 -> 6` | 2026-07-07 | Contains `app_settings` endpoint persistence. |
-| `6.json` | `6` | Generated from the current version-6 source tree for this migration-test baseline. | Current schema target | 2026-07-07 | Includes `connect_identities`, unique fingerprint index, and `cloudSyncEnabled` default metadata aligned with `MIGRATION_5_6`. |
+| `6.json` | `6` | Generated from migration-test baseline commit `05d536d` (`ci: execute Room migration tests on emulator`). | Current schema target | 2026-07-07 | Includes `connect_identities`, unique fingerprint index, and `cloudSyncEnabled` default metadata aligned with `MIGRATION_5_6`. |
 
 ## Supported Migration Graph
 
