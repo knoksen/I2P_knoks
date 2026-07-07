@@ -117,6 +117,15 @@ The instrumentation suite executes:
 
 Instrumentation tests require an Android emulator or connected device. They do not require a live I2P router, public `.i2p` sites, external endpoints, or secrets.
 
+CI evidence for this PR:
+
+- Workflow/job: `Android / migration-instrumentation`
+- Run: [`28834367192`](https://github.com/knoksen/I2P_knoks/actions/runs/28834367192)
+- Commit: `1dddeb9`
+- Date: 2026-07-07
+- Result: instrumentation XML reported `tests=6`, `failures=0`, `errors=0`, and `skipped=0`
+- Uploaded artifacts: `room-migration-test-results`, `room-migration-logcat`, and `room-migration-emulator-diagnostics`
+
 ## Future Schema Changes
 
 A schema-changing PR must:

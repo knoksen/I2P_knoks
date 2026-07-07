@@ -60,11 +60,11 @@ It does not prove anonymity, privacy, production readiness, independent audit st
 | `CORE-LOG-001` | Sensitive log redaction fixtures | Pure logic | JVM | Yes | `LogSanitizerTest` | `AUTOMATED_PASS` | Confirms known sensitive key-value fields are redacted. |
 | `CORE-LOG-002` | Repository log insertion uses sanitizer | Repository/persistence | JVM/manual | Partial | `I2PRepository.addLog` source, sanitizer tests | `AUTOMATED_PARTIAL` | Full DAO-backed repository log test remains a follow-up. |
 | `CORE-MIGRATION-001` | Room schema export and migration graph guard | Repository/persistence | JVM | Yes | `AppDatabaseMigrationTest`, `app/schemas/no.knoksen.i2pbrowser.data.AppDatabase/` | `AUTOMATED_PASS` | Confirms current version 6, supported graph 4->5->6, committed schemas, SQL shape, and no current destructive fallback. |
-| `CORE-MIGRATION-002` | Adjacent Room migration execution | Repository/persistence | Android instrumentation | Partial | `AppDatabaseMigrationInstrumentedTest`, CI emulator job | `AUTOMATED_PARTIAL` | Executes 4->5 and 5->6 with synthetic fixtures when emulator/device instrumentation runs. |
-| `CORE-MIGRATION-003` | Historical origins migrate to current | Repository/persistence | Android instrumentation | Partial | `AppDatabaseMigrationInstrumentedTest`, CI emulator job | `AUTOMATED_PARTIAL` | Executes 4->6 and 5->6 through the registered migration chain when emulator/device instrumentation runs. |
-| `CORE-MIGRATION-004` | Migration data-preservation assertions | Repository/persistence | Android instrumentation | Partial | `AppDatabaseMigrationInstrumentedTest`, synthetic fixture records | `AUTOMATED_PARTIAL` | Checks representative bookmarks, identities, lab messages, logs, trusted keys, contacts, endpoint defaults, and Connect identity defaults. |
-| `CORE-MIGRATION-005` | Repository open after migration | Repository/persistence | Android instrumentation | Partial | `AppDatabaseMigrationInstrumentedTest`, `I2PRepository` | `AUTOMATED_PARTIAL` | Opens migrated DB with current DAOs and checks malformed migrated endpoint values enter a bounded fallback state. |
-| `CORE-MIGRATION-006` | Unsupported downgrade/newer database behavior | Repository/persistence | Android instrumentation | Partial | `AppDatabaseMigrationInstrumentedTest` | `AUTOMATED_PARTIAL` | Verifies newer database versions are not opened through destructive downgrade fallback when instrumentation runs. |
+| `CORE-MIGRATION-002` | Adjacent Room migration execution | Repository/persistence | Android instrumentation | Yes | `AppDatabaseMigrationInstrumentedTest`, GitHub Actions Android run `28834367192` | `AUTOMATED_PASS` | Executes 4->5 and 5->6 with synthetic fixtures in the bounded emulator job. |
+| `CORE-MIGRATION-003` | Historical origins migrate to current | Repository/persistence | Android instrumentation | Yes | `AppDatabaseMigrationInstrumentedTest`, GitHub Actions Android run `28834367192` | `AUTOMATED_PASS` | Executes 4->6 and 5->6 through the registered migration chain in the bounded emulator job. |
+| `CORE-MIGRATION-004` | Migration data-preservation assertions | Repository/persistence | Android instrumentation | Yes | `AppDatabaseMigrationInstrumentedTest`, synthetic fixture records, GitHub Actions Android run `28834367192` | `AUTOMATED_PASS` | Checks representative bookmarks, identities, lab messages, logs, trusted keys, contacts, endpoint defaults, and Connect identity defaults. |
+| `CORE-MIGRATION-005` | Repository open after migration | Repository/persistence | Android instrumentation | Yes | `AppDatabaseMigrationInstrumentedTest`, `I2PRepository`, GitHub Actions Android run `28834367192` | `AUTOMATED_PASS` | Opens migrated DB with current DAOs and checks malformed migrated endpoint values enter a bounded fallback state. |
+| `CORE-MIGRATION-006` | Unsupported downgrade/newer database behavior | Repository/persistence | Android instrumentation | Yes | `AppDatabaseMigrationInstrumentedTest`, GitHub Actions Android run `28834367192` | `AUTOMATED_PASS` | Verifies newer database versions are not opened through destructive downgrade fallback in the bounded emulator job. |
 | `CORE-UI-001` | Principal real-alpha UI boundaries | Android UI | Robolectric Compose JVM | Yes | `AndroidRealAlphaUiCoreFlowTest` | `AUTOMATED_PASS` | Confirms visible real-alpha status and limitations remain present. |
 | `CORE-UI-002` | Full application launch and screen recreation | Android instrumentation | Emulator/manual | No | Existing example instrumentation only | `AUTOMATED_PARTIAL` | Default CI does not run emulator tests yet. |
 
@@ -197,7 +197,7 @@ It does not prove anonymity, privacy, production readiness, independent audit st
 - Fixture: synthetic test-only endpoint, identity, contact, log, and message records; no real I2P identity material or secrets.
 - Source evidence: `AppDatabaseMigrationInstrumentedTest`, `app/schemas/no.knoksen.i2pbrowser.data.AppDatabase/`.
 - Limitations: local execution requires emulator/device availability; this suite does not prove storage security, arbitrary corruption recovery, anonymity, or encryption.
-- CI status: configured in `.github/workflows/android.yml`; do not treat CI execution as validated until GitHub Actions has parsed and run the workflow.
+- CI status: `Android / migration-instrumentation` passed in GitHub Actions run [`28834367192`](https://github.com/knoksen/I2P_knoks/actions/runs/28834367192) for commit `1dddeb9` on 2026-07-07; instrumentation XML reported `tests=6`, `failures=0`, `errors=0`, and `skipped=0`.
 - Claim relationship: `CLAIM-010`.
 
 ### `CORE-UI-001` Principal UI Core Flow
@@ -216,16 +216,16 @@ It does not prove anonymity, privacy, production readiness, independent audit st
 ## Coverage Snapshot
 
 - P0 matrix entries: 36
-- Automated pass entries: 24
-- Automated partial entries: 9
+- Automated pass entries: 29
+- Automated partial entries: 4
 - Manual entries: 1
 - Blocked entries: 1
 - Not implemented entries: 1
 - JVM unit and Robolectric tests: run by `testDebugUnitTest`
-- Instrumentation tests: Room migration suite is configured for a bounded emulator CI job; local execution requires an emulator/device
+- Instrumentation tests: Room migration suite passes in a bounded emulator CI job; local execution requires an emulator/device
 - Protocol-fixture coverage: SAM fake connection and HTTP fake transport
 - External-router coverage: manual only
-- Migration coverage: schema/graph guard passes in JVM; old-version migration execution exists as instrumentation coverage and awaits emulator/CI execution evidence
+- Migration coverage: schema/graph guard passes in JVM; old-version migration execution passes in the bounded GitHub Actions emulator job
 
 ## CI Policy
 
