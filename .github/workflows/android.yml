@@ -127,20 +127,7 @@ jobs:
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
-            set -u
-            mkdir -p app/build/reports/room-migration-ci
-            adb devices -l | tee app/build/reports/room-migration-ci/adb-devices.txt
-            adb shell getprop sys.boot_completed | tee app/build/reports/room-migration-ci/boot-completed.txt
-            adb shell getprop ro.build.version.release | tee app/build/reports/room-migration-ci/android-release.txt
-            adb shell getprop ro.product.cpu.abi | tee app/build/reports/room-migration-ci/android-abi.txt
-            adb shell settings put global window_animation_scale 0
-            adb shell settings put global transition_animation_scale 0
-            adb shell settings put global animator_duration_scale 0
-            adb logcat -c
-            test_exit=0
-            ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=no.knoksen.i2pbrowser.AppDatabaseMigrationInstrumentedTest 2>&1 | tee app/build/reports/room-migration-ci/gradle-output.txt || test_exit=${PIPESTATUS[0]}
-            adb logcat -d > app/build/reports/room-migration-ci/logcat.txt || true
-            exit "$test_exit"
+            bash .github/scripts/run-room-migration-instrumentation.sh
 
       - name: Upload Room migration test results
         if: always()
