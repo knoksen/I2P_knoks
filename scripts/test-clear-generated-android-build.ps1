@@ -296,3 +296,5 @@ try {
         Remove-CleanupTestRoot -Root $Root
     }
 }
+
+exit 0

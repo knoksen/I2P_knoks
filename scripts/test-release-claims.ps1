@@ -169,3 +169,5 @@ See docs/CLAIMS_REGISTER.md, docs/CLAIM_SAFE_WRITING.md, and docs/VALIDATION.md.
         }
     }
 }
+
+exit 0
