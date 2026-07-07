@@ -4,7 +4,7 @@ I2P Connect is a proposed product module for a private, I2P-native communication
 
 The product is inspired by the usability lessons of cloud phone systems: clear identity, simple contact setup, routing-aware status, shared team spaces, and low-friction voice workflows. It adapts those ideas to I2P instead of copying internet telephony expectations.
 
-The first useful version is not live video, not PSTN calling, and not a Zoom replacement. The MVP should make private text messages, encrypted audio notes, contact identity, router readiness checks, and beginner onboarding feel understandable and measurable.
+The first useful I2P Connect release path is planned as asynchronous communication, not live video, PSTN calling, or a Zoom replacement. The MVP should make private text messages, encrypted audio notes, contact identity, router readiness checks, and beginner onboarding feel understandable and measurable after implementation and tests exist.
 
 ## Package Contents
 

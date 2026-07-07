@@ -18,7 +18,9 @@ import no.knoksen.i2pbrowser.i2p.SamBridgeClient
 import no.knoksen.i2pbrowser.i2p.SamSessionManager
 import no.knoksen.i2pbrowser.i2p.SamSessionState
 import no.knoksen.i2pbrowser.i2p.SamSessionStatus
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -70,6 +72,17 @@ data class BrowserTab(
     val fetchBodyPreview: String? = null,
     val fetchError: String? = "Initial local preview content."
 )
+
+data class RepositoryInitializationError(
+    val category: RepositoryInitializationFailureCategory,
+    val safeMessage: String
+)
+
+enum class RepositoryInitializationFailureCategory {
+    REPOSITORY_UNAVAILABLE,
+    STORED_ENDPOINT_UNAVAILABLE,
+    MALFORMED_STORED_ENDPOINT
+}
 
 enum class PeerStatus {
     ACTIVE, STABLE, DEGRADED
@@ -152,20 +165,14 @@ class I2PViewModel @JvmOverloads constructor(
     private val i2pHttpClient: I2pHttpClient? = null,
     private val diagnosticsClient: I2pDiagnosticsClient = I2pDiagnosticsClient(),
     private val samSessionManager: SamSessionManager = SamSessionManager(samBridgeClient),
-    private val routerAnimationDelayScale: Float = 1f
+    private val routerAnimationDelayScale: Float = 1f,
+    private val repositoryFactory: (Application) -> I2PRepositoryContract = ::createI2PRepository
 ) : AndroidViewModel(application) {
 
-    private val db = AppDatabase.getDatabase(application)
-    private val repository = I2PRepository(
-        bookmarkDao = db.bookmarkDao(),
-        identityDao = db.identityDao(),
-        secureMessageDao = db.secureMessageDao(),
-        logDao = db.logDao(),
-        trustedKeyDao = db.trustedKeyDao(),
-        contactDao = db.contactDao(),
-        appSettingsDao = db.appSettingsDao(),
-        connectIdentityDao = db.connectIdentityDao()
-    )
+    private val repositoryCreation = runCatching { repositoryFactory(application) }
+    private val repository = repositoryCreation.getOrElse {
+        UnavailableI2PRepository("Local repository is unavailable. Restart the app or review device storage.")
+    }
 
     // Exposed States
     val bookmarks: StateFlow<List<Bookmark>> = repository.allBookmarks
@@ -206,6 +213,17 @@ class I2PViewModel @JvmOverloads constructor(
 
     private val _isRunningDiagnostics = MutableStateFlow(false)
     val isRunningDiagnostics: StateFlow<Boolean> = _isRunningDiagnostics.asStateFlow()
+
+    private val _repositoryInitializationError = MutableStateFlow(
+        repositoryCreation.exceptionOrNull()?.let {
+            RepositoryInitializationError(
+                category = RepositoryInitializationFailureCategory.REPOSITORY_UNAVAILABLE,
+                safeMessage = "Local repository is unavailable. Restart the app or review device storage."
+            )
+        }
+    )
+    val repositoryInitializationError: StateFlow<RepositoryInitializationError?> =
+        _repositoryInitializationError.asStateFlow()
 
     val samSessionStatus: StateFlow<SamSessionStatus> = samSessionManager.status
 
@@ -281,6 +299,8 @@ class I2PViewModel @JvmOverloads constructor(
 
     private var lastLatencyExceeded = false
     private var lastLossExceeded = false
+    private var diagnosticsJob: Job? = null
+    private var diagnosticsRequestId: Long = 0
 
     private suspend fun routerAnimationDelay(durationMs: Long) {
         if (routerAnimationDelayScale > 0f) {
@@ -305,20 +325,21 @@ class I2PViewModel @JvmOverloads constructor(
         _endpointValidationResult.value = validation
         if (!validation.isValid) {
             viewModelScope.launch {
-                repository.addLog("SETUP", "Rejected invalid I2P endpoint config: ${validation.errors.joinToString("; ")}", "WARN")
+                repository.addLog("SETUP", "Rejected invalid I2P endpoint config: ${validation.errorText}", "WARN")
             }
             return false
         }
+        val normalizedConfig = validation.normalizedConfig ?: config
         _routerState.update {
             it.copy(
-                samHost = config.host,
-                samPort = config.samPort,
-                httpProxyHost = config.host,
-                httpProxyPort = config.httpProxyPort
+                samHost = normalizedConfig.host,
+                samPort = normalizedConfig.samPort,
+                httpProxyHost = normalizedConfig.host,
+                httpProxyPort = normalizedConfig.httpProxyPort
             )
         }
         viewModelScope.launch {
-            repository.saveEndpointConfig(config)
+            repository.saveEndpointConfig(normalizedConfig)
         }
         return true
     }
@@ -488,13 +509,26 @@ class I2PViewModel @JvmOverloads constructor(
         // Seed initial discovered peers
         seedInitialPeers()
         viewModelScope.launch {
-            repository.endpointConfig.collect { config ->
+            repository.endpointConfigState.collect { state ->
+                val config = state.config
                 _routerState.update {
                     it.copy(
                         samHost = config.host,
                         samPort = config.samPort,
                         httpProxyHost = config.host,
                         httpProxyPort = config.httpProxyPort
+                    )
+                }
+                _repositoryInitializationError.value = when (state.status) {
+                    EndpointConfigLoadStatus.PERSISTED_VALID,
+                    EndpointConfigLoadStatus.DEFAULT_MISSING -> null
+                    EndpointConfigLoadStatus.PERSISTED_INVALID_FALLBACK -> RepositoryInitializationError(
+                        category = RepositoryInitializationFailureCategory.MALFORMED_STORED_ENDPOINT,
+                        safeMessage = state.safeMessage ?: "Stored endpoint settings are malformed and need user correction."
+                    )
+                    EndpointConfigLoadStatus.REPOSITORY_UNAVAILABLE -> RepositoryInitializationError(
+                        category = RepositoryInitializationFailureCategory.STORED_ENDPOINT_UNAVAILABLE,
+                        safeMessage = state.safeMessage ?: "Stored endpoint settings could not be loaded."
                     )
                 }
             }
@@ -580,9 +614,9 @@ class I2PViewModel @JvmOverloads constructor(
     }
 
     fun runI2pDiagnostics() {
-        if (_isRunningDiagnostics.value) return
-        viewModelScope.launch {
-            runI2pDiagnosticsNow()
+        val requestId = startDiagnosticsRequest()
+        diagnosticsJob = viewModelScope.launch {
+            runDiagnosticsForRequest(requestId)
         }
     }
 
@@ -604,21 +638,43 @@ class I2PViewModel @JvmOverloads constructor(
         }
     }
 
-    private suspend fun runI2pDiagnosticsNow(): I2pDiagnosticsResult {
+    private fun startDiagnosticsRequest(): Long {
+        diagnosticsJob?.cancel()
+        diagnosticsRequestId += 1
+        _isRunningDiagnostics.value = true
+        return diagnosticsRequestId
+    }
+
+    private suspend fun runDiagnosticsForRequest(requestId: Long): I2pDiagnosticsResult? {
         _isRunningDiagnostics.value = true
         return try {
             val result = diagnosticsClient.runDiagnostics(endpointConfig.value)
-            _diagnosticsResult.value = result
-            _lastDiagnosticsAtMillis.value = System.currentTimeMillis()
-            repository.addLog(
-                "DIAGNOSTIC",
-                "I2P local services: SAM=${result.samReachable}, HTTP=${result.httpProxyReachable}, Console=${result.routerConsoleReachable}. ${result.summary}",
-                if (result.httpProxyReachable) "SUCCESS" else "WARN"
-            )
+            applyDiagnosticsResult(requestId, result)
+            result
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            val result = I2pDiagnosticsClient.unexpectedInternalFailure()
+            applyDiagnosticsResult(requestId, result)
             result
         } finally {
-            _isRunningDiagnostics.value = false
+            if (requestId == diagnosticsRequestId) {
+                _isRunningDiagnostics.value = false
+            }
         }
+    }
+
+    private suspend fun applyDiagnosticsResult(requestId: Long, result: I2pDiagnosticsResult) {
+        if (requestId != diagnosticsRequestId) {
+            return
+        }
+        _diagnosticsResult.value = result
+        _lastDiagnosticsAtMillis.value = System.currentTimeMillis()
+        repository.addLog(
+            "DIAGNOSTIC",
+            "I2P local services: SAM=${result.samReachable}, HTTP=${result.httpProxyReachable}, Console=${result.routerConsoleReachable}. ${result.summary}${result.failureCategory?.let { " category=$it" } ?: ""}",
+            if (result.httpProxyReachable) "SUCCESS" else "WARN"
+        )
     }
 
     internal suspend fun connectRouterForTest() {
@@ -863,7 +919,8 @@ class I2PViewModel @JvmOverloads constructor(
                 )
             }
             if (fetchResult.mode == I2pFetchMode.PROXY_UNAVAILABLE || fetchResult.mode == I2pFetchMode.HOST_LOOKUP_FAILED || fetchResult.mode == I2pFetchMode.TIMEOUT) {
-                runI2pDiagnosticsNow()
+                val requestId = startDiagnosticsRequest()
+                runDiagnosticsForRequest(requestId)
             }
 
             // Simulating dynamic latency and garlic routing steps based on active accessories
@@ -1045,7 +1102,7 @@ class I2PViewModel @JvmOverloads constructor(
             // Write logs for the specific platform
             when (contact.type) {
                 "GOOGLE_CHAT" -> {
-                    repository.addLog("GOOGLE_CHAT", "Initiating secure OTR handshake with Google Chat endpoint: ${contact.address}", "INFO")
+                    repository.addLog("GOOGLE_CHAT", "Starting lab Google Chat preview for endpoint: ${contact.address}", "INFO")
                     repository.addLog("CRYPT", "Demo messenger only: no audited Signal Protocol or OTR session is established.", "WARN")
                     repository.addLog("GOOGLE_CHAT", "Demo payload stored locally; no Google Chat message was dispatched.", "INFO")
                 }
@@ -1054,12 +1111,12 @@ class I2PViewModel @JvmOverloads constructor(
                     repository.addLog("CRYPT", "Local demo payload encoded for UI preview only.", "INFO")
                 }
                 else -> {
-                    repository.addLog("CRYPT", "Demo messenger payload encoded locally. Real crypto backend required for production.", "WARN")
+                    repository.addLog("CRYPT", "Demo messenger payload encoded locally. Release-path crypto backend is not implemented.", "WARN")
                     repository.addLog("TUNNEL", "Simulated tunnel event recorded for ${contact.address}.", "INFO")
                 }
             }
 
-            // Save the secure message in DB
+            // Save the lab message preview in DB.
             val dummyCipher = android.util.Base64.encodeToString(body.toByteArray(), android.util.Base64.NO_WRAP)
             val secureMsg = SecureMessage(
                 senderAddress = currentSender,
@@ -1069,13 +1126,13 @@ class I2PViewModel @JvmOverloads constructor(
                 isDecrypted = true,
                 decryptedBody = body
             )
-            db.secureMessageDao().insertMessage(secureMsg)
+            repository.insertSecureMessage(secureMsg)
 
             // Simulate incoming response after a small delay
             delay(1200)
             val responseBody = when (contact.type) {
-                "GOOGLE_CHAT" -> "E2EE session active on Google Chat. Received your payload. All clear."
-                "SMS" -> "Encrypted SMS received & decrypted successfully via Silence protocol!"
+                "GOOGLE_CHAT" -> "Demo Google Chat preview received your payload. No E2EE session is active."
+                "SMS" -> "Demo SMS preview decoded locally. No cellular SMS or Silence session is active."
                 else -> "Message acknowledged by cryptographic garlic endpoint. Status: Active."
             }
 
@@ -1101,7 +1158,7 @@ class I2PViewModel @JvmOverloads constructor(
                 isDecrypted = true,
                 decryptedBody = responseBody
             )
-            db.secureMessageDao().insertMessage(incomingMsg)
+            repository.insertSecureMessage(incomingMsg)
         }
     }
 
@@ -1141,7 +1198,7 @@ class I2PViewModel @JvmOverloads constructor(
         }
     }
 
-    // Generate secure garlic invitation link
+    // Generate a lab garlic invitation link.
     fun generateBasicInviteLink(name: String, address: String, publicKey: String): String {
         val safeName = android.net.Uri.encode(name)
         val safeAddress = android.net.Uri.encode(address)
@@ -1264,7 +1321,7 @@ class I2PViewModel @JvmOverloads constructor(
     fun clearHistory() {
         viewModelScope.launch {
             repository.clearAllMessages()
-            repository.addLog("DATABASE", "Secure messaging store wiped securely.", "WARN")
+            repository.addLog("DATABASE", "Demo messaging store cleared locally.", "WARN")
         }
     }
 
@@ -1397,6 +1454,20 @@ class I2PViewModel @JvmOverloads constructor(
             }
         }
     }
+}
+
+private fun createI2PRepository(application: Application): I2PRepositoryContract {
+    val db = AppDatabase.getDatabase(application)
+    return I2PRepository(
+        bookmarkDao = db.bookmarkDao(),
+        identityDao = db.identityDao(),
+        secureMessageDao = db.secureMessageDao(),
+        logDao = db.logDao(),
+        trustedKeyDao = db.trustedKeyDao(),
+        contactDao = db.contactDao(),
+        appSettingsDao = db.appSettingsDao(),
+        connectIdentityDao = db.connectIdentityDao()
+    )
 }
 
 data class AccessedNode(

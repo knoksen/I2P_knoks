@@ -17,7 +17,7 @@ Read:
 
 ## Requirements
 
-- Add audio only behind an explicit feature gate or lab flag until release-ready.
+- Add audio only behind an explicit feature gate or lab flag until implementation, tests, docs, and release validation support the behavior.
 - Request `RECORD_AUDIO` only when recording is implemented.
 - Update Android permission docs if the manifest changes.
 - Add short duration and size caps.

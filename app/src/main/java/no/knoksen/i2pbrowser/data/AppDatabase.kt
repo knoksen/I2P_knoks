@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ConnectIdentity::class
     ],
     version = 6,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun bookmarkDao(): BookmarkDao
@@ -42,7 +42,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "i2p_browser_database"
                 )
-                .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(*SUPPORTED_MIGRATIONS)
                 .build()
                 INSTANCE = instance
                 instance
@@ -62,6 +62,9 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL(CONNECT_IDENTITIES_FINGERPRINT_INDEX_SQL)
             }
         }
+
+        const val CURRENT_DATABASE_VERSION = 6
+        val SUPPORTED_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_4_5, MIGRATION_5_6)
     }
 }
 

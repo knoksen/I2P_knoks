@@ -33,7 +33,7 @@ Android permissions must not be interpreted as guarantees of:
 - anonymity
 - encrypted messaging
 - VPN tunneling
-- Tor routing
+- no Tor routing guarantee
 - full-device traffic routing
 - browser sandboxing
 - cryptographic audit status

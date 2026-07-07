@@ -54,7 +54,7 @@ I2P Connect Phase 1: private messages and audio notes.
 
 ## Out Of Scope
 
-- Real-time video.
+- Out of scope: real-time video.
 - Live conferencing.
 - PSTN/SIP calling.
 - Contact discovery across the network.

@@ -1,5 +1,6 @@
 package no.knoksen.i2pbrowser.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -90,6 +91,7 @@ data class ConnectIdentity(
     val privateMaterialRef: String,
     val privateMaterialState: String = ConnectIdentityPrivateMaterialState.PROTECTED_REFERENCE,
     val origin: String = ConnectIdentityOrigin.LOCAL,
+    @ColumnInfo(defaultValue = "0")
     val cloudSyncEnabled: Boolean = false,
     val createdAtMillis: Long = System.currentTimeMillis(),
     val updatedAtMillis: Long = createdAtMillis

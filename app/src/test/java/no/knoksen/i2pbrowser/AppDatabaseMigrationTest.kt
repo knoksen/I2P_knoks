@@ -1,13 +1,69 @@
 package no.knoksen.i2pbrowser
 
+import no.knoksen.i2pbrowser.data.AppDatabase
 import no.knoksen.i2pbrowser.data.APP_SETTINGS_CREATE_SQL
 import no.knoksen.i2pbrowser.data.APP_SETTINGS_DEFAULT_INSERT_SQL
 import no.knoksen.i2pbrowser.data.CONNECT_IDENTITIES_CREATE_SQL
 import no.knoksen.i2pbrowser.data.CONNECT_IDENTITIES_FINGERPRINT_INDEX_SQL
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class AppDatabaseMigrationTest {
+    @Test
+    fun `current database version and migration graph are explicit`() {
+        assertEquals(6, AppDatabase.CURRENT_DATABASE_VERSION)
+        assertEquals(
+            listOf(4 to 5, 5 to 6),
+            AppDatabase.SUPPORTED_MIGRATIONS.map { it.startVersion to it.endVersion }
+        )
+    }
+
+    @Test
+    fun `schema files are committed for every supported Room version`() {
+        val schemaDir = findSchemaDirectory()
+        val expectedFiles = listOf("4.json", "5.json", "6.json")
+
+        expectedFiles.forEach { name ->
+            assertTrue("Missing schema file $name", schemaDir.resolve(name).isFile)
+        }
+    }
+
+    @Test
+    fun `schema files reflect supported table evolution`() {
+        val schemaDir = findSchemaDirectory()
+        val v4 = schemaDir.resolve("4.json").readText()
+        val v5 = schemaDir.resolve("5.json").readText()
+        val v6 = schemaDir.resolve("6.json").readText()
+
+        assertTrue(v4.contains("\"version\": 4"))
+        assertTrue(v4.contains("\"tableName\": \"bookmarks\""))
+        assertTrue(v4.contains("\"tableName\": \"contacts\""))
+        assertFalse(v4.contains("\"tableName\": \"app_settings\""))
+        assertFalse(v4.contains("\"tableName\": \"connect_identities\""))
+
+        assertTrue(v5.contains("\"version\": 5"))
+        assertTrue(v5.contains("\"tableName\": \"app_settings\""))
+        assertTrue(v5.contains("\"columnName\": \"endpointHost\""))
+        assertFalse(v5.contains("\"tableName\": \"connect_identities\""))
+
+        assertTrue(v6.contains("\"version\": 6"))
+        assertTrue(v6.contains("\"tableName\": \"connect_identities\""))
+        assertTrue(v6.contains("\"name\": \"index_connect_identities_fingerprint\""))
+        assertTrue(v6.contains("\"defaultValue\": \"0\""))
+    }
+
+    @Test
+    fun `current database builder does not use destructive migration fallback`() {
+        val source = findSourceFile("app/src/main/java/no/knoksen/i2pbrowser/data/AppDatabase.kt").readText()
+
+        assertFalse(source.contains("fallbackToDestructiveMigration("))
+        assertFalse(source.contains("fallbackToDestructiveMigrationFrom("))
+        assertFalse(source.contains("fallbackToDestructiveMigrationOnDowngrade("))
+    }
+
     @Test
     fun `v4 to v5 migration creates app settings table`() {
         val sql = APP_SETTINGS_CREATE_SQL
@@ -57,5 +113,20 @@ class AppDatabaseMigrationTest {
 
         assertTrue(sql.contains("CREATE UNIQUE INDEX IF NOT EXISTS index_connect_identities_fingerprint"))
         assertTrue(sql.contains("ON connect_identities (fingerprint)"))
+    }
+
+    private fun findSchemaDirectory(): File {
+        val candidates = listOf(
+            File("app/schemas/no.knoksen.i2pbrowser.data.AppDatabase"),
+            File("../app/schemas/no.knoksen.i2pbrowser.data.AppDatabase")
+        )
+        return candidates.firstOrNull { it.isDirectory }
+            ?: error("Could not locate Room schema directory from ${File(".").absolutePath}")
+    }
+
+    private fun findSourceFile(path: String): File {
+        val candidates = listOf(File(path), File("../$path"))
+        return candidates.firstOrNull { it.isFile }
+            ?: error("Could not locate $path from ${File(".").absolutePath}")
     }
 }

@@ -36,21 +36,16 @@ Guidance:
 
 ## Lesson 3: Known Windows Gradle Daemon and Generated app/build Lock
 
-On Windows, `local-release-verify.ps1` may hit a generated `app/build` lock. This is usually caused by a Gradle daemon or Java process holding generated build outputs.
+On Windows, `local-release-verify.ps1` may hit a generated `app/build` lock. This is usually caused by a Gradle daemon, Android Studio, File Explorer, or a terminal holding generated build outputs.
 
-The safe cleanup is to stop Gradle/Java and remove only generated `app/build`.
-
-```powershell
-.\gradlew --stop
-```
-
-If needed, stop the stuck Java/Gradle process from Task Manager or PowerShell.
-
-Then remove only generated output:
+Use the narrow generated-build recovery helper instead of broad cleanup:
 
 ```powershell
-Remove-Item -Recurse -Force .\app\build
+.\scripts\clear-generated-android-build.ps1 -DryRun
+.\scripts\clear-generated-android-build.ps1 -StopGradle
 ```
+
+The helper validates the repository root, refuses unexpected paths, refuses ambiguous link or junction boundaries, invokes only `.\gradlew.bat --stop` when `-StopGradle` is explicit, and removes only the generated `app\build` directory.
 
 Then rerun:
 

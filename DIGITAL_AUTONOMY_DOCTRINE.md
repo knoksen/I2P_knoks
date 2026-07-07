@@ -36,7 +36,7 @@ Avoid:
 - hacker-only aesthetics
 - unsupported anonymity claims
 - unsupported encryption claims
-- promises of Zoom-like real-time video over I2P
+- do not promise Zoom-like real-time video over I2P
 - phone-network replacement language
 - emergency-use claims
 - exposing I2P control ports or sensitive services publicly

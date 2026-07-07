@@ -250,7 +250,7 @@ Short one-paragraph summary.
 - No JavaScript execution
 - No VPN
 - No Tor
-- No secure chat
+- No audited encrypted chat
 - Debug APK only unless otherwise stated
 
 ### Non-goals
@@ -275,7 +275,7 @@ Use [Changelog Template](CHANGELOG_TEMPLATE.md) when preparing a durable changel
 - Production signing keys are not part of this process.
 - Play Store publishing is not part of this process.
 - The app still requires an external Java I2P or i2pd router for real I2P behavior.
-- The app does not provide an embedded router, OS-level VPN, Tor integration, secure chat, or full WebView browser.
+- The app does not provide an embedded router, OS-level VPN, Tor integration, audited encrypted chat, or full WebView browser.
 
 ## Rollback / Bad Release Handling
 

@@ -77,6 +77,18 @@ function Invoke-Checked {
     }
 }
 
+function Write-GeneratedBuildLockRecoveryGuidance {
+    Write-Host ""
+    Write-Host "If this Gradle failure mentions a Windows lock, access-denied error, or inability to delete app\build, use the narrow generated-build recovery helper:" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host ".\scripts\clear-generated-android-build.ps1 -DryRun"
+    Write-Host ".\scripts\clear-generated-android-build.ps1 -StopGradle"
+    Write-Host ".\scripts\local-release-verify.ps1"
+    Write-Host ""
+    Write-Host "The helper validates the repository root and removes only the generated app\build directory. It is not a general cleanup command." -ForegroundColor Yellow
+    Write-Host ""
+}
+
 $java = Find-Java21
 if (-not $java) {
     throw @"
@@ -103,6 +115,11 @@ Write-Host "Checking release-facing claims..." -ForegroundColor Cyan
 Invoke-Checked "$PSScriptRoot\check-release-claims.ps1" -CheckLastExitCode $false
 
 Write-Host "Running Android release verification..." -ForegroundColor Cyan
-Invoke-Checked "$PSScriptRoot\..\gradlew.bat" @("clean", "testDebugUnitTest", "assembleDebug")
+try {
+    Invoke-Checked "$PSScriptRoot\..\gradlew.bat" @("clean", "testDebugUnitTest", "assembleDebug")
+} catch {
+    Write-GeneratedBuildLockRecoveryGuidance
+    throw
+}
 
 Write-Host "Local release verification passed." -ForegroundColor Green

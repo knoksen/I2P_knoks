@@ -8,9 +8,9 @@ I2P Connect
 
 Open communities need private communication tools that are understandable, local-first, and honest about network readiness. I2P Connect should feel as approachable as a cloud phone/contact system while using I2P-native identity and asynchronous communication patterns.
 
-The first product promise is:
+The phase 1 product target is:
 
-> You can create an I2P contact identity, verify readiness, invite trusted contacts, exchange private messages, and send short encrypted audio notes with clear status and beginner guidance.
+> A future I2P Connect release path should let a user create an I2P contact identity, verify readiness, invite trusted contacts, exchange private messages, and send short encrypted audio notes with clear status and beginner guidance.
 
 The product must not promise Zoom-like real-time video quality, enterprise PBX completeness, PSTN calling, emergency calling, or anonymity by itself.
 
@@ -166,5 +166,5 @@ Avoid language such as:
 - "anonymous by default"
 - "live video ready"
 - "enterprise phone replacement"
-- "audited secure chat"
+- "audited encrypted chat"
 - "safe for high-risk use"

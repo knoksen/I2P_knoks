@@ -85,7 +85,7 @@ jobs:
 
           ## Still LAB
 
-          - Full WebView browsing, VPN, Tor, secure chat, peer discovery, and embedded router modes.
+          - Still LAB: Full WebView browsing, VPN, Tor, audited encrypted chat, peer discovery, and embedded router modes.
 
           ## Verification
 
@@ -126,7 +126,7 @@ jobs:
           - No JavaScript execution
           - No VPN
           - No Tor
-          - No secure chat
+          - No audited encrypted chat
 
           ## Non-goals
 

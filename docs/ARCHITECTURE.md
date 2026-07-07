@@ -1,15 +1,15 @@
 # Architecture
 
-I2P Connect is currently `FOUNDATION_ONLY`. This document describes the intended architecture and the boundaries future runtime code must follow.
+The repository currently contains an Android real-alpha app plus planned I2P Connect communication architecture. This document describes release modes and the boundaries future communication runtime code must follow.
 
 ## Release Modes
 
 `FOUNDATION_ONLY`
 
 - Documentation, doctrine, validation scripts, and roadmap exist.
-- No runtime communication code exists.
-- No I2P router integration exists.
-- No identity, contact, message, or media storage exists.
+- No release-path communication runtime exists for the specific feature being discussed.
+- No release-path I2P Connect message transport exists for that feature.
+- No release-path identity, contact, message, or media storage exists for that feature.
 
 `LAB_SIMULATION`
 
@@ -74,13 +74,13 @@ External services must not store:
 - signing keys
 - service role keys
 
-## Runtime Code Gate
+## Runtime Claim Gate
 
-Before runtime code is added, the repository must keep passing:
+Before a planned communication feature becomes release-facing, the repository must keep passing:
 
 ```powershell
 .\scripts\check-release-claims.ps1
 .\scripts\local-release-verify.ps1
 ```
 
-After runtime code is introduced, validation must expand to include build, lint, tests, security checks, and migration checks for the selected stack.
+When release-path behavior is introduced, validation must include build, lint, tests, security checks, migration checks, documentation, and claim review for the selected stack.

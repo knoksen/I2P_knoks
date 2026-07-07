@@ -22,7 +22,7 @@ The first runtime onboarding should start with measured truth:
 - what is not implemented
 - what action comes next
 
-Current repository state should be described as foundation-only until runtime code exists.
+Current repository state should distinguish the Android real-alpha source tree from planned I2P Connect communication work. Do not describe the whole repository as foundation-only while Android runtime code exists.
 
 ## Beginner Missions
 
@@ -64,13 +64,13 @@ Use:
 
 Do not use:
 
-- "guaranteed anonymity"
-- "untraceable"
+- do not use "guaranteed anonymity"
+- do not use "untraceable"
 - "full E2EE" before implementation and tests
 - "zero-trust" before implementation and tests
 - "SASE" before implementation and tests
-- "real-time video" as a release promise
-- "Zoom-like" as a quality promise
+- do not use "real-time video" as a release promise
+- do not use "Zoom-like" as a quality promise
 
 ## Risk Moments
 

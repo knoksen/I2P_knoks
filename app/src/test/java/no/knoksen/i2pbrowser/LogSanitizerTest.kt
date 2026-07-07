@@ -58,6 +58,67 @@ class LogSanitizerTest {
     }
 
     @Test
+    fun `redacts endpoint identity session and query parameter fixtures`() {
+        val sanitized = LogSanitizer.sanitize(
+            """
+            endpointHost=127.0.0.1 samPort=7656 httpProxyPort=4444
+            destination=example-test-destination.invalid
+            i2pAddress=test-contact.i2p fingerprint=AA-BB-CC-DD
+            sessionId=i2p_knoks_test_session
+            proxy exception url=http://site.i2p/?token=secret-token
+            encoded query token%3DurlEncodedSecret
+            """.trimIndent()
+        )
+
+        assertFalse(sanitized.contains("127.0.0.1"))
+        assertFalse(sanitized.contains("7656"))
+        assertFalse(sanitized.contains("4444"))
+        assertFalse(sanitized.contains("example-test-destination.invalid"))
+        assertFalse(sanitized.contains("test-contact.i2p"))
+        assertFalse(sanitized.contains("AA-BB-CC-DD"))
+        assertFalse(sanitized.contains("i2p_knoks_test_session"))
+        assertFalse(sanitized.contains("secret-token"))
+        assertFalse(sanitized.contains("urlEncodedSecret"))
+        assertTrue(sanitized.contains("endpointHost=[redacted]"))
+        assertTrue(sanitized.contains("token%3D[redacted]"))
+    }
+
+    @Test
+    fun `sanitization is repeatable and keeps ordinary diagnostic structure`() {
+        val input = "DIAGNOSTIC level=INFO samReachable=true messageBody=\"sensitive body\""
+
+        val once = LogSanitizer.sanitize(input)
+        val twice = LogSanitizer.sanitize(once)
+
+        assertEquals(once, twice)
+        assertTrue(once.contains("DIAGNOSTIC"))
+        assertTrue(once.contains("samReachable=true"))
+        assertTrue(once.contains("messageBody=[redacted]"))
+    }
+
+    @Test
+    fun `redacts diagnostic exception fixtures while keeping categories useful`() {
+        val sanitized = LogSanitizer.sanitize(
+            """
+            diagnosticCategory=CONNECTION_TIMEOUT endpoint=[::1]:7656 HOST=192.168.1.44
+            sessionId=i2p_knoks_test_session publicDestination=TEST_PUBLIC_IDENTITY_NOT_REAL
+            uri=http://example.i2p/path?token=querySecret cause="nested endpointHost=10.0.2.2 destination=hidden.i2p"
+            malformedResponse=${"x".repeat(700)}
+            """.trimIndent()
+        )
+
+        assertTrue(sanitized.contains("diagnosticCategory=CONNECTION_TIMEOUT"))
+        assertFalse(sanitized.contains("[::1]:7656"))
+        assertFalse(sanitized.contains("192.168.1.44"))
+        assertFalse(sanitized.contains("i2p_knoks_test_session"))
+        assertFalse(sanitized.contains("TEST_PUBLIC_IDENTITY_NOT_REAL"))
+        assertFalse(sanitized.contains("querySecret"))
+        assertFalse(sanitized.contains("10.0.2.2"))
+        assertFalse(sanitized.contains("hidden.i2p"))
+        assertTrue(sanitized.contains("malformedResponse=[redacted]"))
+    }
+
+    @Test
     fun `caps long log messages`() {
         val sanitized = LogSanitizer.sanitize("x".repeat(800))
 

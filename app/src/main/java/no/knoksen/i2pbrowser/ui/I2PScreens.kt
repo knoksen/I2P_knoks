@@ -3015,7 +3015,7 @@ fun I2PHelpCenterWidget(
                         Spacer(modifier = Modifier.height(4.dp))
                         BulletPoint("High Latency Spikes", "Caused by traversing multiple global nodes. Activate 'FAST PATH' to temporarily drop to a low-latency 1-hop tunnel pool.")
                         BulletPoint("High Packet Loss Rates", "Caused by unstable or compromised intermediary garlic peers. Trigger 'POOL REFRESH' to flush local netDB descriptors and establish new circuits.")
-                        BulletPoint("Degraded Security Scores", "Always utilize standard 3-hop or high-privacy 5-hop configurations when communicating sensitive garlic-encrypted payloads.")
+                        BulletPoint("Degraded Lab Scores", "Use standard 3-hop or high-privacy 5-hop configurations only as lab routing profiles until release-path messaging is implemented.")
                     }
                 }
             }
@@ -3333,7 +3333,7 @@ fun GarlicChatTab(
         ) {
             Column {
                 Text(
-                    "SECURE DIRECTORY & CHAT",
+                    "LAB DIRECTORY & CHAT",
                     style = MaterialTheme.typography.titleMedium,
                     color = TextPrimary,
                     fontWeight = FontWeight.Bold,
@@ -3371,7 +3371,7 @@ fun GarlicChatTab(
                 val label = when (type) {
                     "SECURE_I2P" -> "I2P GARLIC"
                     "GOOGLE_CHAT" -> "GOOGLE CHAT"
-                    "SMS" -> "SECURE SMS"
+                    "SMS" -> "LAB SMS"
                     else -> "ALL NETWORKS"
                 }
                 val chipColor = when (type) {
@@ -3591,7 +3591,7 @@ fun GarlicChatTab(
                                 ) {
                                     Text(
                                         text = when (contact.type) {
-                                            "GOOGLE_CHAT" -> "GOOGLE CHAT (E2EE)"
+                                            "GOOGLE_CHAT" -> "GOOGLE CHAT (LAB)"
                                             "SMS" -> "SMS (SILENCE PROTOCOL)"
                                             else -> "I2P GARLIC PEER"
                                         },
@@ -3694,7 +3694,7 @@ fun GarlicChatTab(
                         )
 
                         Text(
-                            text = if (routerState.isConnected || contact.type != "SECURE_I2P") "CARRIER ENCRYPTED" else "OFFLINE",
+                            text = if (routerState.isConnected || contact.type != "SECURE_I2P") "LAB ENCODED" else "OFFLINE",
                             style = MaterialTheme.typography.labelSmall,
                             color = if (routerState.isConnected || contact.type != "SECURE_I2P") CyberGreen else CyberRed,
                             fontWeight = FontWeight.Bold,
@@ -3794,13 +3794,13 @@ fun GarlicChatTab(
                         modifier = Modifier.size(48.dp)
                     )
                     Text(
-                        text = "SECURE MESSAGING CHANNEL",
+                        text = "LAB MESSAGING PREVIEW",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
                     Text(
-                        text = "Please tap any peer profile from the directory carousel above to establish a secure E2EE chat tunnel, or tap ADD to register new Google Chat or SMS contacts.",
+                        text = "Please tap any peer profile from the directory carousel above to open a lab message preview, or tap ADD to register new Google Chat or SMS contacts.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary,
                         textAlign = TextAlign.Center,
@@ -3818,7 +3818,7 @@ fun GarlicChatTab(
             containerColor = CyberDarkSurface,
             title = {
                 Text(
-                    "ADD SECURE DISPATCH CONTACT",
+                    "ADD LAB DISPATCH CONTACT",
                     style = MaterialTheme.typography.titleMedium,
                     color = CyberBlue,
                     fontWeight = FontWeight.Bold,
@@ -3831,7 +3831,7 @@ fun GarlicChatTab(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        "Register a cryptographic peer handle, Google Chat email, or SMS phone number to support client-side payload encryption.",
+                        "Register a peer handle, Google Chat email, or SMS phone number for local lab message previews.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -3970,7 +3970,7 @@ fun GarlicChatTab(
                             val typeLabel = when (type) {
                                 "SECURE_I2P" -> "I2P Garlic"
                                 "GOOGLE_CHAT" -> "Google Chat"
-                                "SMS" -> "Secure SMS"
+                                "SMS" -> "Lab SMS"
                                 else -> ""
                             }
                             val typeColor = when (type) {
@@ -4094,7 +4094,7 @@ fun ContactMessageBubble(
                         modifier = Modifier.size(9.dp)
                     )
                     Text(
-                        text = if (isOutgoing) "SECURE DISPATCH" else contact.name.uppercase(),
+                        text = if (isOutgoing) "LAB DISPATCH" else contact.name.uppercase(),
                         fontSize = 8.sp,
                         color = if (isOutgoing) CyberGreen else CyberPurple,
                         fontWeight = FontWeight.Bold,
@@ -4130,7 +4130,7 @@ fun ContactMessageBubble(
                 ) {
                     Column {
                         Text(
-                            text = msg.decryptedBody ?: "[Encrypted Payload]",
+                            text = msg.decryptedBody ?: "[Lab Payload]",
                             color = TextPrimary,
                             fontSize = 12.sp
                         )
@@ -4303,7 +4303,7 @@ fun TerminalCryptorTab(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    "Encrypt secure messages using real asymmetric RSA keys. Load either your own generated key pair or any peer's public key from your verified keyring, then run and watch the encryption steps stream live inside the mock terminal.",
+                    "Run a local encryption demonstration with demo RSA key material. Load your generated key pair or a peer public key from the lab keyring, then watch the steps stream inside the mock terminal.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
@@ -4329,7 +4329,7 @@ fun TerminalCryptorTab(
                 OutlinedTextField(
                     value = cryptorPlaintext,
                     onValueChange = { cryptorPlaintext = it },
-                    label = { Text("Secure plaintext message to encrypt", color = TextSecondary) },
+                    label = { Text("Lab plaintext message to encode", color = TextSecondary) },
                     placeholder = { Text("Enter secret information here...", color = TextSecondary) },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -4347,7 +4347,7 @@ fun TerminalCryptorTab(
 
                 // Select Encryption Key Option
                 Text(
-                    "SELECT TARGET ENCRYPTION KEY",
+                    "SELECT DEMO KEY",
                     style = MaterialTheme.typography.labelSmall,
                     color = TextSecondary,
                     fontWeight = FontWeight.Bold
@@ -4504,7 +4504,7 @@ fun TerminalCryptorTab(
                                         terminalLogs.add("[$timestamp] CRYPT-FAIL: Cipher output aborted.")
                                         terminalLogs.add("[$timestamp] DETAILS: $finalCipher")
                                     } else {
-                                        terminalLogs.add("[$timestamp] SUCCESS: Cipher completed successfully! Encrypted payload generated.")
+                                        terminalLogs.add("[$timestamp] SUCCESS: Cipher completed successfully. Lab payload generated.")
                                         delay(150)
                                         terminalLogs.add("[$timestamp] GARLIC: Sealed and wrapped with session ephemeral tags.")
                                         delay(150)
@@ -5131,7 +5131,7 @@ fun PeerKeyManagerTab(viewModel: I2PViewModel) {
                         Icon(Icons.Default.VpnKey, contentDescription = null, tint = TextSecondary.copy(alpha = 0.5f), modifier = Modifier.size(40.dp))
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("No trusted peer keys in keyring database.", color = TextSecondary, fontSize = 13.sp)
-                        Text("Exchange secure invitations to establish contact.", color = TextSecondary.copy(alpha = 0.7f), fontSize = 11.sp)
+                        Text("Exchange lab invite previews to establish contact.", color = TextSecondary.copy(alpha = 0.7f), fontSize = 11.sp)
                     }
                 }
             }
@@ -5317,7 +5317,7 @@ fun PeerKeyManagerTab(viewModel: I2PViewModel) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        "Paste a peer's cryptographic address parameters to trust their public keys for garlic-encryption.",
+                        "Paste a peer's lab address parameters to preview public-key trust state.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -5397,7 +5397,7 @@ fun InvitationLabTab(viewModel: I2PViewModel) {
     val activeIdentity by viewModel.activeIdentity.collectAsState()
     
     var sharePinCode by remember { mutableStateOf("") }
-    var exportFormatByGarlic by remember { mutableStateOf(false) } // False = Basic Link, True = Garlic Encrypted Packet
+    var exportFormatByGarlic by remember { mutableStateOf(false) } // False = Basic Link, True = Lab Garlic Packet
     
     var importInvitationText by remember { mutableStateOf("") }
     var importPinCode by remember { mutableStateOf("") }
@@ -5429,7 +5429,7 @@ fun InvitationLabTab(viewModel: I2PViewModel) {
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Package your active public key parameters so another comrade can trust you and send you garlic-encrypted messages.",
+                        "Package your active public key parameters so another test contact can import a lab invite preview.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -5482,7 +5482,7 @@ fun InvitationLabTab(viewModel: I2PViewModel) {
                                 contentPadding = PaddingValues(0.dp)
                             ) {
                                 Text(
-                                    "Garlic Packet (Secure)",
+                                    "Garlic Packet (Lab)",
                                     fontSize = 11.sp,
                                     color = if (exportFormatByGarlic) CyberGreen else TextSecondary,
                                     fontWeight = FontWeight.Bold
@@ -5519,7 +5519,7 @@ fun InvitationLabTab(viewModel: I2PViewModel) {
                                         activeId.name, activeId.i2pAddress, activeId.publicKeyBase64, code
                                     )
                                     clipboardManager.setText(AnnotatedString(packet))
-                                    importStatusMessage = "Secure Garlic Packet copied! Share it and the PIN: $code"
+                                    importStatusMessage = "Lab Garlic Packet copied. Share it and the PIN: $code"
                                     isImportSuccess = true
                                     sharePinCode = ""
                                 },
@@ -5578,7 +5578,7 @@ fun InvitationLabTab(viewModel: I2PViewModel) {
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Paste a basic link or garlic-encrypted packet received from another comrade to add them to your Keyring database.",
+                        "Paste a basic link or lab garlic packet received from another test contact to add them to your keyring database.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -7964,7 +7964,7 @@ fun GpsEmulatorTab(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Tap register to instantly save these secure alternative display name and address presets to your active database based on the active GPS localization.",
+                        "Tap register to save these lab alternative display name and address presets to your active database based on the active GPS localization.",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextSecondary
                     )
@@ -7982,7 +7982,7 @@ fun GpsEmulatorTab(
                             val typeLabel = when (type) {
                                 "SECURE_I2P" -> "I2P GARLIC"
                                 "GOOGLE_CHAT" -> "GOOGLE CHAT"
-                                "SMS" -> "SECURE SMS"
+                                "SMS" -> "LAB SMS"
                                 else -> ""
                             }
 
@@ -9009,7 +9009,7 @@ fun RouterConsoleWebUI(
                                     "Status: VERIFIED IN DHT\n" +
                                     "Capabilities: [O, S, R]\n" +
                                     "Declared Latency: ${kotlin.random.Random.nextInt(120, 240)}ms\n" +
-                                    "Transport: NTCP2 (Encrypted TCP)"
+                                    "Transport label: NTCP2 sample"
                                 } else {
                                     "DHT Query Failed: Router node is offline."
                                 }

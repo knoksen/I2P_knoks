@@ -1,12 +1,54 @@
 package no.knoksen.i2pbrowser.data
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import no.knoksen.i2pbrowser.i2p.I2pEndpointConfig
 import java.security.KeyPairGenerator
 import java.security.KeyPair
 import android.util.Base64
 import java.util.UUID
+
+interface I2PRepositoryContract {
+    val allBookmarks: Flow<List<Bookmark>>
+    val allIdentities: Flow<List<Identity>>
+    val allMessages: Flow<List<SecureMessage>>
+    val recentLogs: Flow<List<LogEntry>>
+    val allTrustedKeys: Flow<List<TrustedKey>>
+    val allContacts: Flow<List<Contact>>
+    val endpointConfigState: Flow<EndpointConfigLoadState>
+    val endpointConfig: Flow<I2pEndpointConfig>
+
+    suspend fun saveEndpointConfig(config: I2pEndpointConfig)
+    suspend fun addContact(name: String, address: String, type: String, status: String = "ONLINE", avatarColorHex: String = "#00B0FF")
+    suspend fun removeContact(contact: Contact)
+    suspend fun addBookmark(title: String, url: String, iconName: String = "public", colorHex: String = "#00B0FF", safetyLevel: String = "SAFE")
+    suspend fun removeBookmark(bookmark: Bookmark)
+    suspend fun addLog(tag: String, message: String, level: String = "INFO")
+    suspend fun clearLogs()
+    suspend fun clearAllMessages()
+    suspend fun createIdentity(name: String): Identity
+    suspend fun insertSecureMessage(message: SecureMessage)
+    suspend fun sendMessage(sender: String, recipient: String, body: String)
+    suspend fun addTrustedKey(alias: String, i2pAddress: String, publicKeyBase64: String, isVerified: Boolean = false)
+    suspend fun removeTrustedKey(key: TrustedKey)
+    suspend fun verifyTrustedKey(key: TrustedKey)
+    suspend fun seedDefaultsIfNeeded()
+}
+
+data class EndpointConfigLoadState(
+    val config: I2pEndpointConfig,
+    val status: EndpointConfigLoadStatus,
+    val safeMessage: String? = null
+)
+
+enum class EndpointConfigLoadStatus {
+    PERSISTED_VALID,
+    DEFAULT_MISSING,
+    PERSISTED_INVALID_FALLBACK,
+    REPOSITORY_UNAVAILABLE
+}
 
 class I2PRepository(
     private val bookmarkDao: BookmarkDao,
@@ -17,23 +59,38 @@ class I2PRepository(
     private val contactDao: ContactDao,
     private val appSettingsDao: AppSettingsDao,
     private val connectIdentityDao: ConnectIdentityDao
-) {
-    val allBookmarks: Flow<List<Bookmark>> = bookmarkDao.getAllBookmarks()
-    val allIdentities: Flow<List<Identity>> = identityDao.getAllIdentities()
-    val allMessages: Flow<List<SecureMessage>> = secureMessageDao.getAllMessages()
-    val recentLogs: Flow<List<LogEntry>> = logDao.getRecentLogs()
-    val allTrustedKeys: Flow<List<TrustedKey>> = trustedKeyDao.getAllTrustedKeys()
-    val allContacts: Flow<List<Contact>> = contactDao.getAllContacts()
+) : I2PRepositoryContract {
+    override val allBookmarks: Flow<List<Bookmark>> = bookmarkDao.getAllBookmarks()
+    override val allIdentities: Flow<List<Identity>> = identityDao.getAllIdentities()
+    override val allMessages: Flow<List<SecureMessage>> = secureMessageDao.getAllMessages()
+    override val recentLogs: Flow<List<LogEntry>> = logDao.getRecentLogs()
+    override val allTrustedKeys: Flow<List<TrustedKey>> = trustedKeyDao.getAllTrustedKeys()
+    override val allContacts: Flow<List<Contact>> = contactDao.getAllContacts()
     val allConnectIdentities: Flow<List<ConnectIdentity>> = connectIdentityDao.getAllConnectIdentities()
-    val endpointConfig: Flow<I2pEndpointConfig> = appSettingsDao.getSettings()
-        .map { settings -> settings?.toEndpointConfig() ?: I2pEndpointConfig.LOCAL_ANDROID_ROUTER }
+    override val endpointConfigState: Flow<EndpointConfigLoadState> = appSettingsDao.getSettings()
+        .map { settings -> settings.toEndpointConfigLoadState() }
+        .catch {
+            emit(
+                EndpointConfigLoadState(
+                    config = I2pEndpointConfig.LOCAL_ANDROID_ROUTER,
+                    status = EndpointConfigLoadStatus.REPOSITORY_UNAVAILABLE,
+                    safeMessage = "Stored endpoint settings could not be loaded."
+                )
+            )
+        }
+    override val endpointConfig: Flow<I2pEndpointConfig> = endpointConfigState.map { it.config }
 
-    suspend fun saveEndpointConfig(config: I2pEndpointConfig) {
-        appSettingsDao.upsertSettings(config.toEntity())
-        addLog("SETUP", "I2P endpoint saved: ${config.label} ${config.host}:${config.httpProxyPort}", "INFO")
+    override suspend fun saveEndpointConfig(config: I2pEndpointConfig) {
+        val normalized = config.normalizedOrNull()
+        if (normalized == null) {
+            addLog("SETUP", "Rejected invalid endpoint before persistence: ${config.validate().errorText}", "WARN")
+            return
+        }
+        appSettingsDao.upsertSettings(normalized.toEntity())
+        addLog("SETUP", "I2P endpoint saved: ${normalized.label} ${normalized.host}:${normalized.httpProxyPort}", "INFO")
     }
 
-    suspend fun addContact(name: String, address: String, type: String, status: String = "ONLINE", avatarColorHex: String = "#00B0FF") {
+    override suspend fun addContact(name: String, address: String, type: String, status: String, avatarColorHex: String) {
         contactDao.insertContact(
             Contact(
                 name = name,
@@ -46,29 +103,33 @@ class I2PRepository(
         addLog("CONTACTS", "Added new contact: $name ($type - $address)", "SUCCESS")
     }
 
-    suspend fun removeContact(contact: Contact) {
+    override suspend fun removeContact(contact: Contact) {
         contactDao.deleteContact(contact)
         addLog("CONTACTS", "Deleted contact: ${contact.name}", "WARN")
     }
 
-    suspend fun addBookmark(title: String, url: String, iconName: String = "public", colorHex: String = "#00B0FF", safetyLevel: String = "SAFE") {
+    override suspend fun addBookmark(title: String, url: String, iconName: String, colorHex: String, safetyLevel: String) {
         bookmarkDao.insertBookmark(Bookmark(title = title, url = url, iconName = iconName, colorHex = colorHex, safetyLevel = safetyLevel))
     }
 
-    suspend fun removeBookmark(bookmark: Bookmark) {
+    override suspend fun removeBookmark(bookmark: Bookmark) {
         bookmarkDao.deleteBookmark(bookmark)
     }
 
-    suspend fun addLog(tag: String, message: String, level: String = "INFO") {
+    override suspend fun addLog(tag: String, message: String, level: String) {
         logDao.insertLog(LogEntry(tag = tag, message = LogSanitizer.sanitize(message), level = level))
     }
 
-    suspend fun clearLogs() {
+    override suspend fun clearLogs() {
         logDao.clearLogs()
     }
 
-    suspend fun clearAllMessages() {
+    override suspend fun clearAllMessages() {
         secureMessageDao.clearAllMessages()
+    }
+
+    override suspend fun insertSecureMessage(message: SecureMessage) {
+        secureMessageDao.insertMessage(message)
     }
 
     suspend fun createConnectIdentity(displayName: String, publicDestination: String): ConnectIdentity {
@@ -99,7 +160,7 @@ class I2PRepository(
         return result
     }
 
-    suspend fun sendMessage(sender: String, recipient: String, body: String) {
+    override suspend fun sendMessage(sender: String, recipient: String, body: String) {
         addLog("CRYPT", "Demo messenger payload encoded locally for $recipient. Not audited cryptography.", "WARN")
         addLog("ROUTING", "Simulating Garlic Packet wrapping for UI preview.", "ROUTING")
         addLog("TUNNEL", "Simulated outbound tunnel event recorded.", "INFO")
@@ -127,7 +188,7 @@ class I2PRepository(
     private suspend fun simulateAutoResponse(fromContact: String, toSelf: String) {
         val responseText = when {
             fromContact.contains("anon.chat") -> "Welcome to the local chat preview. This demo response is stored locally and does not prove private routing."
-            fromContact.contains("secure.mail") -> "Hello. Demo mailbox preview is active. Real encrypted mail is not implemented yet."
+            fromContact.contains("secure.mail") -> "Hello. Demo mailbox preview is active. Release-path encrypted mail is not implemented."
             fromContact.contains("wiki.leaks") -> "Demo endpoint received your preview payload. Use a real crypto backend before sharing sensitive files."
             else -> "Demo endpoint acknowledged the preview payload. Connection status is simulated."
         }
@@ -147,7 +208,7 @@ class I2PRepository(
         secureMessageDao.insertMessage(incomingMsg)
     }
 
-    suspend fun createIdentity(name: String): Identity {
+    override suspend fun createIdentity(name: String): Identity {
         addLog("KEYGEN", "Initializing demo RSA keypair for local identity preview.", "INFO")
         val keys = try {
             val keyGen = KeyPairGenerator.getInstance("RSA")
@@ -176,7 +237,7 @@ class I2PRepository(
         return identity
     }
 
-    suspend fun addTrustedKey(alias: String, i2pAddress: String, publicKeyBase64: String, isVerified: Boolean = false) {
+    override suspend fun addTrustedKey(alias: String, i2pAddress: String, publicKeyBase64: String, isVerified: Boolean) {
         val existing = trustedKeyDao.getTrustedKeyByAddress(i2pAddress)
         if (existing != null) {
             // Update
@@ -199,12 +260,12 @@ class I2PRepository(
         }
     }
 
-    suspend fun removeTrustedKey(key: TrustedKey) {
+    override suspend fun removeTrustedKey(key: TrustedKey) {
         trustedKeyDao.deleteTrustedKey(key)
         addLog("KEYRING", "Revoked & removed peer key for: ${key.alias} (${key.i2pAddress})", "WARN")
     }
 
-    suspend fun verifyTrustedKey(key: TrustedKey) {
+    override suspend fun verifyTrustedKey(key: TrustedKey) {
         addLog("CRYPT", "Simulating key verification for ${key.alias}.", "INFO")
         addLog("CRYPT", "Demo challenge packet generated locally.", "ROUTING")
         addLog("CRYPT", "Demo verification complete. Not proof of real peer ownership.", "WARN")
@@ -213,7 +274,7 @@ class I2PRepository(
     }
 
     // Seed initial database state for lab preview bookmarks, contacts, and identity UI.
-    suspend fun seedDefaultsIfNeeded() {
+    override suspend fun seedDefaultsIfNeeded() {
         val defaultBookmarks = listOf(
             Bookmark(title = "I2P Project Homepage", url = "http://i2p-project.i2p", iconName = "language", colorHex = "#00E676"),
             Bookmark(title = "Sample Chat Preview", url = "http://anon.chat.i2p", iconName = "chat", colorHex = "#D500F9"),
@@ -268,36 +329,103 @@ class I2PRepository(
             Contact(name = "Sybil (I2P Router Radar)", address = "sybil.i2p", type = "SECURE_I2P", status = "OFFLINE", avatarColorHex = "#FF3D00"),
             Contact(name = "Google Chat: Project Dev Lead", address = "lead.dev@gmail.com", type = "GOOGLE_CHAT", status = "ONLINE", avatarColorHex = "#FFD600"),
             Contact(name = "Google Chat: AI Bridge Agent", address = "gemini.bridge@gmail.com", type = "GOOGLE_CHAT", status = "ONLINE", avatarColorHex = "#AA00FF"),
-            Contact(name = "SMS: Secure Dispatcher", address = "+1555019283", type = "SMS", status = "ONLINE", avatarColorHex = "#00B0FF"),
+            Contact(name = "SMS: Lab Dispatcher", address = "+1555019283", type = "SMS", status = "ONLINE", avatarColorHex = "#00B0FF"),
             Contact(name = "SMS: Emergency Backup Canary", address = "+1800555992", type = "SMS", status = "OFFLINE", avatarColorHex = "#FF3D00")
         )
 
         contactDao.getAllContacts().collect { list ->
             if (list.isEmpty()) {
                 defaultContacts.forEach { contactDao.insertContact(it) }
-                addLog("DATABASE", "Seeded default secure contacts list (I2P, Google Chat, SMS).", "SUCCESS")
+                addLog("DATABASE", "Seeded default lab contacts list (I2P, Google Chat, SMS).", "SUCCESS")
             }
         }
     }
 }
 
-fun AppSettingsEntity.toEndpointConfig(): I2pEndpointConfig {
-    return I2pEndpointConfig(
+class UnavailableI2PRepository(
+    private val safeMessage: String = "Local repository is unavailable."
+) : I2PRepositoryContract {
+    override val allBookmarks: Flow<List<Bookmark>> = flowOf(emptyList())
+    override val allIdentities: Flow<List<Identity>> = flowOf(emptyList())
+    override val allMessages: Flow<List<SecureMessage>> = flowOf(emptyList())
+    override val recentLogs: Flow<List<LogEntry>> = flowOf(emptyList())
+    override val allTrustedKeys: Flow<List<TrustedKey>> = flowOf(emptyList())
+    override val allContacts: Flow<List<Contact>> = flowOf(emptyList())
+    override val endpointConfigState: Flow<EndpointConfigLoadState> = flowOf(
+        EndpointConfigLoadState(
+            config = I2pEndpointConfig.LOCAL_ANDROID_ROUTER,
+            status = EndpointConfigLoadStatus.REPOSITORY_UNAVAILABLE,
+            safeMessage = safeMessage
+        )
+    )
+    override val endpointConfig: Flow<I2pEndpointConfig> = endpointConfigState.map { it.config }
+
+    override suspend fun saveEndpointConfig(config: I2pEndpointConfig) = Unit
+    override suspend fun addContact(name: String, address: String, type: String, status: String, avatarColorHex: String) = Unit
+    override suspend fun removeContact(contact: Contact) = Unit
+    override suspend fun addBookmark(title: String, url: String, iconName: String, colorHex: String, safetyLevel: String) = Unit
+    override suspend fun removeBookmark(bookmark: Bookmark) = Unit
+    override suspend fun addLog(tag: String, message: String, level: String) = Unit
+    override suspend fun clearLogs() = Unit
+    override suspend fun clearAllMessages() = Unit
+    override suspend fun insertSecureMessage(message: SecureMessage) = Unit
+    override suspend fun createIdentity(name: String): Identity {
+        return Identity(
+            name = name,
+            publicKeyBase64 = "",
+            privateKeyBase64 = "",
+            i2pAddress = "unavailable.local",
+            fullDestination = ""
+        )
+    }
+    override suspend fun sendMessage(sender: String, recipient: String, body: String) = Unit
+    override suspend fun addTrustedKey(alias: String, i2pAddress: String, publicKeyBase64: String, isVerified: Boolean) = Unit
+    override suspend fun removeTrustedKey(key: TrustedKey) = Unit
+    override suspend fun verifyTrustedKey(key: TrustedKey) = Unit
+    override suspend fun seedDefaultsIfNeeded() = Unit
+}
+
+fun AppSettingsEntity?.toEndpointConfigLoadState(): EndpointConfigLoadState {
+    if (this == null) {
+        return EndpointConfigLoadState(
+            config = I2pEndpointConfig.LOCAL_ANDROID_ROUTER,
+            status = EndpointConfigLoadStatus.DEFAULT_MISSING
+        )
+    }
+    val config = I2pEndpointConfig(
         label = endpointLabel,
         host = endpointHost,
         samPort = samPort,
         httpProxyPort = httpProxyPort,
         routerConsolePort = routerConsolePort
     )
+    val validation = config.validate()
+    return if (validation.isValid && validation.normalizedConfig != null) {
+        EndpointConfigLoadState(
+            config = validation.normalizedConfig,
+            status = EndpointConfigLoadStatus.PERSISTED_VALID
+        )
+    } else {
+        EndpointConfigLoadState(
+            config = I2pEndpointConfig.LOCAL_ANDROID_ROUTER,
+            status = EndpointConfigLoadStatus.PERSISTED_INVALID_FALLBACK,
+            safeMessage = "Stored endpoint settings are malformed and need user correction."
+        )
+    }
+}
+
+fun AppSettingsEntity.toEndpointConfig(): I2pEndpointConfig {
+    return toEndpointConfigLoadState().config
 }
 
 fun I2pEndpointConfig.toEntity(): AppSettingsEntity {
+    val normalized = normalizedOrNull() ?: this
     return AppSettingsEntity(
-        endpointLabel = label,
-        endpointHost = host,
-        samPort = samPort,
-        httpProxyPort = httpProxyPort,
-        routerConsolePort = routerConsolePort
+        endpointLabel = normalized.label,
+        endpointHost = normalized.host,
+        samPort = normalized.samPort,
+        httpProxyPort = normalized.httpProxyPort,
+        routerConsolePort = normalized.routerConsolePort
     )
 }
 
@@ -305,10 +433,11 @@ internal object LogSanitizer {
     private const val MAX_LOG_MESSAGE_LENGTH = 500
     private const val REDACTED = "[redacted]"
     private const val SENSITIVE_FIELD_NAMES =
-        "Set-Cookie|Authorization|Cookie|PRIV|privateDestination|privateKeyBase64|privateMaterialRef|privateAppKey|apiKey|GEMINI_API_KEY|password|credential|secret|token|body|messageBody|decryptedBody|plaintext"
+        "Set-Cookie|Authorization|Cookie|PRIV|privateDestination|publicDestination|destination|endpoint|endpointHost|endpointPort|i2pAddress|identity|fingerprint|sessionId|routerHost|samHost|httpProxyHost|routerConsoleHost|host|port|samPort|httpProxyPort|routerConsolePort|privateKeyBase64|privateMaterialRef|privateAppKey|apiKey|GEMINI_API_KEY|password|credential|secret|token|body|messageBody|decryptedBody|plaintext|url|uri|exception|cause|response|malformedResponse"
 
     private val sensitivePatterns = listOf(
-        Regex("""(?is)\b($SENSITIVE_FIELD_NAMES)\s*[:=]\s*("[^"]*"|'[^']*'|.*?)(?=\s+\b(?:$SENSITIVE_FIELD_NAMES)\s*[:=]|$)"""),
+        Regex("""(?is)\b($SENSITIVE_FIELD_NAMES)\s*[:=]\s*("[^"]*"|'[^']*'|.*?)(?=\s+\b(?:$SENSITIVE_FIELD_NAMES)(?:\s*[:=]|%3[dD])|$)"""),
+        Regex("""(?is)\b($SENSITIVE_FIELD_NAMES)(?:%3[dD])([^&\s]+)"""),
         Regex("""(?is)-----BEGIN PRIVATE KEY-----.*?-----END PRIVATE KEY-----""")
     )
 
@@ -317,7 +446,8 @@ internal object LogSanitizer {
             .fold(message) { current, pattern ->
                 pattern.replace(current) { match ->
                     if (match.groupValues.size > 1) {
-                        "${match.groupValues[1]}=$REDACTED"
+                        val separator = if (match.value.contains("%3d", ignoreCase = true)) "%3D" else "="
+                        "${match.groupValues[1]}$separator$REDACTED"
                     } else {
                         REDACTED
                     }

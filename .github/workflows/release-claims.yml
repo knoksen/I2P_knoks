@@ -7,9 +7,22 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "README.md"
+      - "SECURITY.md"
+      - "metadata.json"
       - "docs/**"
+      - "product/**"
       - "app/src/main/java/**"
+      - "app/src/main/res/values/strings.xml"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+      - ".github/ISSUE_TEMPLATE.md"
+      - ".github/workflows/release-draft.yml"
       - "scripts/check-release-claims.ps1"
+      - "scripts/test-release-claims.ps1"
+      - "scripts/GeneratedAndroidBuildCleanup.psm1"
+      - "scripts/clear-generated-android-build.ps1"
+      - "scripts/test-clear-generated-android-build.ps1"
+      - "scripts/local-release-verify.ps1"
+      - "scripts/new-release-notes-template.ps1"
       - ".github/workflows/release-claims.yml"
 
 permissions:
@@ -36,12 +49,42 @@ jobs:
         shell: pwsh
         run: ./scripts/check-release-claims.ps1
 
+      - name: Run release claim checker tests
+        shell: pwsh
+        run: ./scripts/test-release-claims.ps1
+
       - name: Write claim check summary
         run: |
           {
             echo "## I2P Knoks Release Claim Check"
             echo ""
             echo "- Script: \`scripts/check-release-claims.ps1\`"
+            echo "- Tests: \`scripts/test-release-claims.ps1\`"
             echo "- Scope: README, docs, and app source release-facing text"
             echo "- Result: passed"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  generated-build-recovery:
+    name: Test generated-build recovery helper
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run generated-build cleanup helper tests
+        shell: pwsh
+        run: .\scripts\test-clear-generated-android-build.ps1
+
+      - name: Write generated-build cleanup summary
+        shell: pwsh
+        run: |
+          @(
+            "## Generated Build Recovery Helper"
+            ""
+            "- Script: ``scripts/clear-generated-android-build.ps1``"
+            "- Tests: ``scripts/test-clear-generated-android-build.ps1``"
+            "- Runner: ``windows-latest``"
+            "- Scope: disposable temporary repositories only"
+            "- Result: passed"
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

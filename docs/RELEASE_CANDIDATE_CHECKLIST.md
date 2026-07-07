@@ -39,7 +39,7 @@ This checklist verifies:
 - [ ] `git diff --check`
 - [ ] `./scripts/local-release-verify.ps1`
 
-If local verification hits the known generated `app/build` lock on Windows, stop Gradle/Java, remove only generated `app/build`, and rerun verification.
+If local verification hits the known generated `app/build` lock on Windows, run `.\scripts\clear-generated-android-build.ps1 -DryRun`, then `.\scripts\clear-generated-android-build.ps1 -StopGradle`, and rerun verification. Do not use broad cleanup.
 
 ## Required Remote Verification
 
