@@ -161,3 +161,78 @@ jobs:
             app/build/reports/room-migration-ci/sdkmanager-installed.txt
             app/build/reports/room-migration-ci/avdmanager-devices.txt
           if-no-files-found: ignore
+
+  identity-instrumentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Enable KVM for Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Record Android SDK diagnostics
+        run: |
+          mkdir -p app/build/reports/connect-identity-ci
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --list_installed | tee app/build/reports/connect-identity-ci/sdkmanager-installed.txt || true
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/avdmanager" list device | tee app/build/reports/connect-identity-ci/avdmanager-devices.txt || true
+
+      - name: Run public identity import instrumentation tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            bash .github/scripts/run-connect-identity-instrumentation.sh
+
+      - name: Upload public identity import test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: connect-identity-test-results
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+            app/build/reports/connect-identity-ci/gradle-output.txt
+          if-no-files-found: ignore
+
+      - name: Upload public identity import Logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: connect-identity-logcat
+          path: app/build/reports/connect-identity-ci/logcat.txt
+          if-no-files-found: ignore
+
+      - name: Upload public identity emulator diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: connect-identity-emulator-diagnostics
+          path: |
+            app/build/reports/connect-identity-ci/adb-devices.txt
+            app/build/reports/connect-identity-ci/boot-completed.txt
+            app/build/reports/connect-identity-ci/android-release.txt
+            app/build/reports/connect-identity-ci/android-abi.txt
+            app/build/reports/connect-identity-ci/sdkmanager-installed.txt
+            app/build/reports/connect-identity-ci/avdmanager-devices.txt
+          if-no-files-found: ignore

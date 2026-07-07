@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.CancellationException
 import no.knoksen.i2pbrowser.i2p.I2pEndpointConfig
 import java.security.KeyPairGenerator
 import java.security.KeyPair
@@ -29,6 +30,7 @@ interface I2PRepositoryContract {
     suspend fun clearLogs()
     suspend fun clearAllMessages()
     suspend fun createIdentity(name: String): Identity
+    suspend fun importConnectIdentityPublic(exportText: String): ConnectIdentityImportResult
     suspend fun insertSecureMessage(message: SecureMessage)
     suspend fun sendMessage(sender: String, recipient: String, body: String)
     suspend fun addTrustedKey(alias: String, i2pAddress: String, publicKeyBase64: String, isVerified: Boolean = false)
@@ -139,7 +141,7 @@ class I2PRepository(
         )
         val id = connectIdentityDao.insertConnectIdentity(identity)
         val stored = identity.copy(id = id)
-        addLog("CONNECT_ID", "Created local I2P Connect identity ${stored.fingerprint}. Cloud sync disabled.", "SUCCESS")
+        addLog("CONNECT_ID", "Created local I2P Connect identity. Cloud sync disabled.", "SUCCESS")
         return stored
     }
 
@@ -147,17 +149,57 @@ class I2PRepository(
         return ConnectIdentityExportCodec.encodePublic(identity)
     }
 
-    suspend fun importConnectIdentityPublic(exportText: String): ConnectIdentityImportResult {
-        val result = ConnectIdentityExportCodec.decodePublic(exportText)
-        if (result is ConnectIdentityImportResult.Success) {
-            val id = connectIdentityDao.insertConnectIdentity(result.identity)
-            addLog("CONNECT_ID", "Imported public-only I2P Connect identity ${result.identity.fingerprint}.", "INFO")
-            return result.copy(identity = result.identity.copy(id = id))
+    override suspend fun importConnectIdentityPublic(exportText: String): ConnectIdentityImportResult {
+        return try {
+            when (val decoded = ConnectIdentityExportCodec.decodePublic(exportText)) {
+                is ConnectIdentityDecodeResult.Success -> importDecodedConnectIdentity(decoded)
+                is ConnectIdentityDecodeResult.Invalid -> {
+                    addLog("CONNECT_ID", "Public identity import rejected: ${decoded.reason}.", "WARN")
+                    ConnectIdentityImportResult.Invalid(decoded.reason)
+                }
+                is ConnectIdentityDecodeResult.Unsupported -> {
+                    addLog("CONNECT_ID", "Public identity import unsupported: ${decoded.reason}.", "WARN")
+                    ConnectIdentityImportResult.Unsupported(decoded.reason)
+                }
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            addLog("CONNECT_ID", "Public identity import failed: ${ConnectIdentityImportFailure.STORAGE_UNAVAILABLE}.", "WARN")
+            ConnectIdentityImportResult.Failure(ConnectIdentityImportFailure.STORAGE_UNAVAILABLE)
         }
-        if (result is ConnectIdentityImportResult.Failure) {
-            addLog("CONNECT_ID", "Public identity import failed: ${result.reason}", "WARN")
+    }
+
+    private suspend fun importDecodedConnectIdentity(
+        decoded: ConnectIdentityDecodeResult.Success
+    ): ConnectIdentityImportResult {
+        return when (val outcome = connectIdentityDao.insertOrFindConnectIdentity(decoded.identity)) {
+            is ConnectIdentityInsertOutcome.Inserted -> {
+                addLog("CONNECT_ID", "Public identity import completed: IMPORTED.", "INFO")
+                ConnectIdentityImportResult.Imported(
+                    identityId = outcome.identity.id,
+                    fingerprint = outcome.identity.fingerprint,
+                    warnings = decoded.warnings
+                )
+            }
+            is ConnectIdentityInsertOutcome.Existing -> {
+                if (!outcome.identity.hasSameCanonicalPublicMaterial(decoded.identity)) {
+                    addLog("CONNECT_ID", "Public identity import failed: ${ConnectIdentityImportFailure.FINGERPRINT_CONFLICT}.", "WARN")
+                    ConnectIdentityImportResult.Failure(ConnectIdentityImportFailure.FINGERPRINT_CONFLICT)
+                } else {
+                    addLog("CONNECT_ID", "Public identity import completed: ALREADY_EXISTS.", "INFO")
+                    ConnectIdentityImportResult.AlreadyExists(
+                        identityId = outcome.identity.id,
+                        fingerprint = outcome.identity.fingerprint,
+                        warnings = decoded.warnings
+                    )
+                }
+            }
+            ConnectIdentityInsertOutcome.DuplicateLookupFailed -> {
+                addLog("CONNECT_ID", "Public identity import failed: ${ConnectIdentityImportFailure.DUPLICATE_LOOKUP_FAILED}.", "WARN")
+                ConnectIdentityImportResult.Failure(ConnectIdentityImportFailure.DUPLICATE_LOOKUP_FAILED)
+            }
         }
-        return result
     }
 
     override suspend fun sendMessage(sender: String, recipient: String, body: String) {
@@ -369,6 +411,9 @@ class UnavailableI2PRepository(
     override suspend fun clearLogs() = Unit
     override suspend fun clearAllMessages() = Unit
     override suspend fun insertSecureMessage(message: SecureMessage) = Unit
+    override suspend fun importConnectIdentityPublic(exportText: String): ConnectIdentityImportResult {
+        return ConnectIdentityImportResult.Failure(ConnectIdentityImportFailure.STORAGE_UNAVAILABLE)
+    }
     override suspend fun createIdentity(name: String): Identity {
         return Identity(
             name = name,
@@ -433,7 +478,7 @@ internal object LogSanitizer {
     private const val MAX_LOG_MESSAGE_LENGTH = 500
     private const val REDACTED = "[redacted]"
     private const val SENSITIVE_FIELD_NAMES =
-        "Set-Cookie|Authorization|Cookie|PRIV|privateDestination|publicDestination|destination|endpoint|endpointHost|endpointPort|i2pAddress|identity|fingerprint|sessionId|routerHost|samHost|httpProxyHost|routerConsoleHost|host|port|samPort|httpProxyPort|routerConsolePort|privateKeyBase64|privateMaterialRef|privateAppKey|apiKey|GEMINI_API_KEY|password|credential|secret|token|body|messageBody|decryptedBody|plaintext|url|uri|exception|cause|response|malformedResponse"
+        "Set-Cookie|Authorization|Cookie|PRIV|privateDestination|publicDestination|publicAppKey|destination|endpoint|endpointHost|endpointPort|i2pAddress|identity|fingerprint|displayName|label|note|importSource|importPayload|sessionId|routerHost|samHost|httpProxyHost|routerConsoleHost|host|port|samPort|httpProxyPort|routerConsolePort|privateKeyBase64|privateMaterialRef|privateAppKey|apiKey|GEMINI_API_KEY|password|credential|secret|token|body|messageBody|decryptedBody|plaintext|url|uri|exception|cause|response|malformedResponse"
 
     private val sensitivePatterns = listOf(
         Regex("""(?is)\b($SENSITIVE_FIELD_NAMES)\s*[:=]\s*("[^"]*"|'[^']*'|.*?)(?=\s+\b(?:$SENSITIVE_FIELD_NAMES)(?:\s*[:=]|%3[dD])|$)"""),

@@ -176,7 +176,8 @@ These are the next small, clean PR-sized tasks before broader feature work.
 - [x] Protect `RELEASE_REAL` from lab-only surfaces with explicit tests.
 - [x] Commit Room schemas for supported versions 4, 5, and 6 and add a JVM schema/graph guard.
 - [x] Add Android instrumentation migration tests for supported 4->5->6 paths with synthetic fixtures.
-- [ ] Capture successful migration instrumentation execution from a local emulator/device or GitHub Actions before marking migration execution complete.
+- [x] Capture successful migration instrumentation execution from GitHub Actions before marking migration execution complete.
+- [x] Add automated duplicate public identity import coverage with JVM tests and GitHub Actions Room/SQLite instrumentation evidence.
 
 ### Gate Claims In Pull Requests
 
@@ -273,12 +274,12 @@ These are the next small, clean PR-sized tasks before broader feature work.
 ## Top 10 Next Actions
 
 1. Keep validation automated in CI and visible in PR review.
-2. Run the Room migration instrumentation suite in CI/local emulator and promote migration matrix entries only after reports are available.
+2. Implement deterministic loopback socket fixtures for SAM and HTTP-proxy lifecycle validation.
 3. Define alpha exit criteria.
 4. Introduce feature flags for experimental functionality.
 5. Revise onboarding so it is honest, simple, and operational.
 6. Complete dependency review before adding advanced libraries.
 7. Add issue templates for bugs and security-sensitive reports if more structure is needed.
 8. Turn audio and advanced upgrades into bounded experiment tracks.
-9. Implement deterministic loopback socket fixtures for SAM and HTTP-proxy lifecycle validation.
+9. Add DAO-backed repository log tests for sanitizer persistence behavior.
 10. Add a lightweight threat model before private messaging or audio work.

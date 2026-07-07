@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import no.knoksen.i2pbrowser.data.Bookmark
 import no.knoksen.i2pbrowser.data.Contact
+import no.knoksen.i2pbrowser.data.ConnectIdentityImportResult
 import no.knoksen.i2pbrowser.data.EndpointConfigLoadState
 import no.knoksen.i2pbrowser.data.EndpointConfigLoadStatus
 import no.knoksen.i2pbrowser.data.I2PRepositoryContract
@@ -27,6 +28,7 @@ import no.knoksen.i2pbrowser.i2p.I2pDiagnosticsResult
 import no.knoksen.i2pbrowser.i2p.I2pDiagnosticsSummary
 import no.knoksen.i2pbrowser.i2p.I2pEndpointConfig
 import no.knoksen.i2pbrowser.i2p.RealAlphaReadiness
+import no.knoksen.i2pbrowser.ui.ConnectIdentityImportUiCategory
 import no.knoksen.i2pbrowser.ui.RepositoryInitializationFailureCategory
 import no.knoksen.i2pbrowser.ui.I2PViewModel
 import org.junit.Assert.assertEquals
@@ -136,6 +138,33 @@ class I2PViewModelCoreFlowTest {
         assertEquals(I2pEndpointConfig.LOCAL_ANDROID_ROUTER, viewModel.endpointConfig.value)
         viewModel.cancelForTest()
     }
+
+    @Test
+    fun `public identity duplicate import result is exposed as bounded UI state`() = runTest {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val viewModel = I2PViewModel(
+            application = app,
+            repositoryFactory = {
+                FakeRepository(
+                    importResult = ConnectIdentityImportResult.AlreadyExists(
+                        identityId = 42L,
+                        fingerprint = "AA-BB-CC-DD",
+                        warnings = emptyList()
+                    )
+                )
+            },
+            routerAnimationDelayScale = 0f
+        )
+
+        viewModel.importConnectIdentityPublic("raw export text")
+        drainMain()
+
+        val state = viewModel.connectIdentityImportState.value
+        assertEquals(ConnectIdentityImportUiCategory.ALREADY_EXISTS, state?.category)
+        assertFalse(state?.safeMessage.orEmpty().contains("AA-BB-CC-DD"))
+        assertFalse(state?.safeMessage.orEmpty().contains("raw export"))
+        viewModel.cancelForTest()
+    }
 }
 
 private fun I2PViewModel.cancelForTest() {
@@ -146,7 +175,13 @@ private fun drainMain() {
     shadowOf(Looper.getMainLooper()).idle()
 }
 
-private class FakeRepository : I2PRepositoryContract {
+private class FakeRepository(
+    private val importResult: ConnectIdentityImportResult = ConnectIdentityImportResult.Imported(
+        identityId = 1L,
+        fingerprint = "TEST-FINGERPRINT",
+        warnings = emptyList()
+    )
+) : I2PRepositoryContract {
     override val allBookmarks: Flow<List<Bookmark>> = flowOf(emptyList())
     override val allIdentities: Flow<List<Identity>> = flowOf(emptyList())
     override val allMessages: Flow<List<SecureMessage>> = flowOf(emptyList())
@@ -172,6 +207,7 @@ private class FakeRepository : I2PRepositoryContract {
     override suspend fun addLog(tag: String, message: String, level: String) = Unit
     override suspend fun clearLogs() = Unit
     override suspend fun clearAllMessages() = Unit
+    override suspend fun importConnectIdentityPublic(exportText: String): ConnectIdentityImportResult = importResult
     override suspend fun createIdentity(name: String): Identity {
         return Identity(
             name = name,

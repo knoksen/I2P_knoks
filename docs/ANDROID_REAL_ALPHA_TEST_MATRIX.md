@@ -56,7 +56,7 @@ It does not prove anonymity, privacy, production readiness, independent audit st
 | `CORE-PROXY-003` | Bounded and sanitized preview | Parser/sanitizer | JVM | Yes | `I2pHttpClientTest` | `AUTOMATED_PASS` | Confirms preview cap and script/style removal for supported preview content. |
 | `CORE-PROXY-004` | Real external HTTP proxy behavior | External-router test | Optional local I2P/i2pd | No | Manual smoke docs | `MANUAL_PASS` when performed | Not required in default CI; does not prove anonymity. |
 | `CORE-IDENTITY-001` | Public-only identity export/import | Pure logic | JVM | Yes | `ConnectIdentityModelTest` | `AUTOMATED_PASS` | Confirms public material export/import and private-material rejection. |
-| `CORE-IDENTITY-002` | Duplicate public identity import through DAO | Repository/persistence | JVM/Room needed | No | Matrix gap | `BLOCKED` | Needs a focused repository/DAO duplicate-import test before stronger claim wording. |
+| `CORE-IDENTITY-002` | Duplicate public identity import through DAO | Repository/persistence | JVM and Android instrumentation | Yes | `ConnectIdentityRepositoryTest`, `ConnectIdentityImportInstrumentedTest`, GitHub Actions Android run `28837867825` | `AUTOMATED_PASS` | Confirms duplicate import idempotency through canonical fingerprinting, repository mapping, DAO transaction behavior, and the Room v6 unique index. |
 | `CORE-LOG-001` | Sensitive log redaction fixtures | Pure logic | JVM | Yes | `LogSanitizerTest` | `AUTOMATED_PASS` | Confirms known sensitive key-value fields are redacted. |
 | `CORE-LOG-002` | Repository log insertion uses sanitizer | Repository/persistence | JVM/manual | Partial | `I2PRepository.addLog` source, sanitizer tests | `AUTOMATED_PARTIAL` | Full DAO-backed repository log test remains a follow-up. |
 | `CORE-MIGRATION-001` | Room schema export and migration graph guard | Repository/persistence | JVM | Yes | `AppDatabaseMigrationTest`, `app/schemas/no.knoksen.i2pbrowser.data.AppDatabase/` | `AUTOMATED_PASS` | Confirms current version 6, supported graph 4->5->6, committed schemas, SQL shape, and no current destructive fallback. |
@@ -157,9 +157,22 @@ It does not prove anonymity, privacy, production readiness, independent audit st
 - Test layer: pure logic.
 - Fixture: synthetic values only.
 - Source evidence: `ConnectIdentityModel`.
-- Limitations: duplicate DAO insertion behavior is not yet covered.
+- Limitations: duplicate DAO insertion behavior is covered separately by `CORE-IDENTITY-002`.
 - CI status: runs through `testDebugUnitTest`.
 - Claim relationship: `CLAIM-008`.
+
+### `CORE-IDENTITY-002` Duplicate Public Identity Import
+
+- Preconditions: synthetic public-only identity export using `I2P_CONNECT_IDENTITY_V1`; current Room version 6 with unique `connect_identities.fingerprint` index.
+- Action: decode and canonicalize public identity material, derive the fingerprint once, import through the repository, and rely on the DAO transaction plus unique index for duplicate handling.
+- Expected result: first import creates one row; sequential and concurrent duplicate imports return `AlreadyExists` with the stable existing row ID; canonical-equivalent exports resolve to the same fingerprint; distinct public material creates distinct rows.
+- Expected failure behavior: malformed or unsupported input is rejected before persistence; non-duplicate database failures map to bounded failure categories; cancellation propagates; raw SQL, public identity payloads, labels, and stack traces are not surfaced through ViewModel state or logs.
+- Test layer: pure parser logic, repository fake-DAO contract, Robolectric ViewModel state, and Android Room/SQLite instrumentation.
+- Fixture: synthetic public destination and public app key only; no private destination, private app key, real I2P identity, live router, external endpoint, or secret.
+- Source evidence: `ConnectIdentityModel`, `ConnectIdentityDao.insertOrFindConnectIdentity`, `I2PRepository.importConnectIdentityPublic`, `ConnectIdentityRepositoryTest`, `ConnectIdentityImportInstrumentedTest`.
+- Limitations: duplicate detection establishes equality under the current canonical public-identity format. It does not verify ownership, trustworthiness, personhood, authenticated contacts, secure key exchange, messaging readiness, or absence of fingerprint collisions.
+- CI status: `Android / identity-instrumentation` passed in GitHub Actions run [`28837867825`](https://github.com/knoksen/I2P_knoks/actions/runs/28837867825) for commit `894b8dd` on 2026-07-07; instrumentation XML reported `tests=5`, `failures=0`, `errors=0`, and `skipped=0`.
+- Claim relationship: `CLAIM-008`, `CLAIM-023`.
 
 ### `CORE-LOG-001` Log Sanitization
 
@@ -216,13 +229,13 @@ It does not prove anonymity, privacy, production readiness, independent audit st
 ## Coverage Snapshot
 
 - P0 matrix entries: 36
-- Automated pass entries: 29
+- Automated pass entries: 30
 - Automated partial entries: 4
 - Manual entries: 1
-- Blocked entries: 1
+- Blocked entries: 0
 - Not implemented entries: 1
 - JVM unit and Robolectric tests: run by `testDebugUnitTest`
-- Instrumentation tests: Room migration suite passes in a bounded emulator CI job; local execution requires an emulator/device
+- Instrumentation tests: Room migration and duplicate public-identity import suites pass in bounded emulator CI jobs; local execution requires an emulator/device
 - Protocol-fixture coverage: SAM fake connection and HTTP fake transport
 - External-router coverage: manual only
 - Migration coverage: schema/graph guard passes in JVM; old-version migration execution passes in the bounded GitHub Actions emulator job
