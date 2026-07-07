@@ -118,6 +118,8 @@ CI uses the `Android / identity-instrumentation` job in `.github/workflows/andro
 - `connect-identity-logcat`
 - `connect-identity-emulator-diagnostics`
 
+Current CI evidence: GitHub Actions Android run [`28837867825`](https://github.com/knoksen/I2P_knoks/actions/runs/28837867825) passed `identity-instrumentation` for commit `894b8dd` on 2026-07-07. The uploaded JUnit XML reported `ConnectIdentityImportInstrumentedTest` with `tests=5`, `failures=0`, `errors=0`, and `skipped=0`.
+
 Useful output locations:
 
 - JVM identity reports: `app/build/reports/tests/testDebugUnitTest/`
