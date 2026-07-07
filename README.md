@@ -1,141 +1,137 @@
-# 🌌 I2P Browser & Garlic Network Escrow
+# I2P Network Console Simulator
 
-[![Windows Desktop Build](https://img.shields.io/badge/Windows_Desktop-v1.2.0--stable-0078d4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/)
-[![PWA Quick Launch](https://img.shields.io/badge/PWA_Quick_Launch-Active--Online-3178c6?style=for-the-badge&logo=typescript&logoColor=white)](https://ais-pre-lotxsxijwzctq7cadhhava-983598203489.europe-west2.run.app)
-[![Garlic Routing](https://img.shields.io/badge/Garlic_Routing-AES--256_--_RSA--4096-4caf50?style=for-the-badge&logo=security&logoColor=white)](https://github.com/)
-[![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack_Compose_--_Material_3-4285f4?style=for-the-badge&logo=android&logoColor=white)](https://github.com/)
+> [!IMPORTANT]
+> This repository currently contains an **educational Android prototype and interface simulator**. It is **not an I2P router, anonymity tool, VPN, production browser, or secure messenger**. It does not presently establish real I2P tunnels or connect through SAM/I2CP.
 
-A modern, high-security, **garlic-routing browser and network console simulator** built using **Kotlin, Jetpack Compose (Material 3), and SQLite Room**. It simulates the Invisible Internet Project (I2P) network layer, complete with localized encryption tunnels, VPS routing gateways, and end-to-end cryptographic communications.
+The project explores user-interface patterns for privacy technology using Kotlin, Jetpack Compose, Room, and local simulated state. Its purpose is to make concepts such as destinations, tunnels, key continuity, telemetry, and operational warnings easier to understand before real router integration is attempted.
 
----
+## Current maturity
 
-## 🚀 PWA & DESKTOP QUICK LAUNCH
+| Area | Current state |
+|---|---|
+| Android UI | Prototype implemented with Jetpack Compose |
+| Local persistence | Room entities and DAOs |
+| Tunnel management | Simulated local records and status changes |
+| Network telemetry | Illustrative/generated values, not measurements from I2P |
+| Message transport | Local simulation only |
+| Payload protection | Placeholder behavior; Base64 is used in parts of the prototype and is **not encryption** |
+| Identity handling | Demonstrative local key generation and storage; not production-safe |
+| I2P router integration | Not implemented |
+| VPN functionality | Not implemented |
+| Production security review | Not completed |
 
-Access and deploy the application instantly across your devices with these quick launch triggers:
+## Implemented prototype modules
 
-| Platform | Quick Launch Button | Installation Type |
-| :--- | :--- | :--- |
-| **PWA Web App** | [![Launch PWA](https://img.shields.io/badge/Launch-PROG_WEB_APP-3178c6?style=flat-for-the-badge&logo=googlechrome&logoColor=white)](https://ais-pre-lotxsxijwzctq7cadhhava-983598203489.europe-west2.run.app) | Installs as an app directly from Microsoft Edge or Google Chrome on Windows. |
-| **Windows Desktop** | [![Windows Installer](https://img.shields.io/badge/Install-WINDOWS_DESKTOP-0078d4?style=flat-for-the-badge&logo=windows&logoColor=white)](#windows-desktop-native-pwa-installation) | Standalone Chromium wrapper with native system notification integration and offline caching. |
-| **Android Emulator** | [![Stream Applet](https://img.shields.io/badge/Stream-AISTUDIO_EMULATOR-ff6f00?style=flat-for-the-badge&logo=android&logoColor=white)](https://ai.studio/build) | Direct high-performance cloud streaming interface via Google AI Studio. |
+### Console and tunnel visualization
 
----
+- Creates and stores local tunnel-like configuration records.
+- Displays simulated state, traffic counters, logs, and topology concepts.
+- Allows UI-level activation and deactivation of simulated tunnel entries.
 
-## 🖥️ SCREENSHOT SHOWCASE
+No real inbound or outbound I2P tunnel is created by these controls.
 
-### 1. Windows Desktop PWA & Gateway Controller
-*A preview of the dashboard interface running inside a dedicated Windows desktop frame, displaying encrypted garlic routing nodes, tunnel latency, and network tunnels.*
+### Local browser-style interface
 
-<p align="center">
-  <img src="assets/desktop_mockup.jpg" width="85%" alt="Windows Desktop PWA Interface" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" />
-</p>
+- Stores bookmarks and safety labels.
+- Demonstrates how `.i2p` destinations might be presented to users.
+- Uses seeded fictional or illustrative entries for interface development.
 
-### 2. Network Telemetry & VPN/VPS Live Monitor
-*High-resolution status visualization representing active tunnel throughput, server CPU/RAM metrics, and public gateway peer handshakes.*
+The current application is not a hardened browser and must not be used to access untrusted content.
 
-<p align="center">
-  <img src="assets/app_stats_banner.jpg" width="85%" alt="Cyber Security Telemetry and Graphs" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" />
-</p>
+### Messaging demonstration
 
----
+- Stores locally generated message records.
+- Visualizes routing and cryptographic stages through simulated logs.
+- Generates automatic local responses for selected demonstration destinations.
 
-## 📊 LIVE NETWORK SIMULATION STATISTICS
+The existing message path does not provide a reviewed end-to-end encryption protocol or network delivery.
 
-| Parameter | Value | Standard | Operational Status |
-| :--- | :--- | :--- | :--- |
-| **Primary Cipher** | `AES-GCM-256 / SHA-256` | Military Escrow | 🟢 ACTIVE (Quantum-Safe) |
-| **Signature Algorithm** | `Ed25519 / RedDSA` | I2P Spec v2.4 | 🟢 VERIFIED |
-| **Tunnel Uptime** | `99.998%` | High-Availability | 🟢 OPTIMAL |
-| **Average Tunnel Ping** | `12ms - 28ms` | Low-Latency Gateway | 🟢 FAST |
-| **Total Garlic Leasesets** | `4,192 Active` | Decentered Directory | 🟢 SYNCHRONIZED |
-| **Active Tunnel Bundles** | `8 Inbound / 8 Outbound` | Multi-Hop Escrow | 🟢 ESTABLISHED |
+### Identity and trust interface
 
----
+- Demonstrates public/private key fields, aliases, contacts, and trust status.
+- Supports local import and deletion workflows.
+- Models key verification as a user-interface concept.
 
-## 🛡️ KEY FUNCTIONAL MODULES
+Current key persistence and verification behavior are not suitable for real identities or private key material.
 
-### 🌐 1. Router Console (Garlic Routing Topology)
-- Monitors active tunnels, lease sets, and peer node handshakes in real-time.
-- Visualizes network speed logs, bandwidth thresholds, and garlic-routing tunnel hop relays.
-- Dynamic debug logs reflecting underlying network layer transactions.
+## Security boundary
 
-### 🧭 2. Secure Web Browser
-- Browse simulation-safe darknet sites (e.g. `.i2p` domains).
-- Features an Address Book with custom bookmark creation.
-- **Safety Rating Escrow**: Categorizes bookmarks as `SAFE`, `SUSPICIOUS`, or `DANGEROUS` with color-coded warning banners.
+Do **not** use this prototype to protect sensitive communications, conceal a network address, store production destination keys, manage real infrastructure credentials, or make anonymity claims.
 
-### 🔒 3. VPN & VPS Routing Portal
-- **Secure VPN Tunneling**: Toggle cryptographic tunnels (ShadowTunnel, Onion Shield) to encrypt the initial hop from your ISP.
-- **Remote VPS Gateway Manager**: Save, connect, and monitor private server node endpoints using SSH. Displays CPU usage, RAM allocation, and live bandwidth graphs.
+The following are specifically out of scope for the current build:
 
-### 💬 4. Secure Messenger (P2P Chat)
-- Decentered peer messaging client utilizing RSA and AES encryption.
-- Direct key handshakes (exchanging Public Keys) to lock private communication channels.
-- Local SQLite database logging with instant message state validation.
+- verified Garlic Routing;
+- real LeaseSet publication or lookup;
+- SAM, BOB, or I2CP router communication;
+- network-level tunnel construction;
+- VPN or proxy protection;
+- production-grade key storage;
+- cryptographically verified peer handshakes;
+- trustworthy uptime, latency, node, or traffic measurements;
+- quantum-resistant security.
 
-### 🔑 5. Cryptographic Identity Panel
-- Generates a unique Base64 garlic destination identifier key pair.
-- Sign messages locally to verify authorship using cryptographic key signatures.
-- Toggle anonymity modes and refresh signature seeds.
+A hash or checksum can verify that an artifact did not change after publication. It does not prove that the software is secure or anonymous.
 
----
+## Architecture
 
-## 📦 WINDOWS DESKTOP & NATIVE PWA INSTALLATION
+```text
+Jetpack Compose UI
+        |
+        v
+ViewModel / repository layer
+        |
+        v
+Room database and local simulation state
+```
 
-### Method A: Standalone PWA Installation (Recommended)
-You can launch and install this app as a standalone Windows applet using any Chromium-based desktop browser:
-1. Open **Google Chrome** or **Microsoft Edge** on Windows.
-2. Navigate to the **PWA Web App** URL:  
-   👉 [https://ais-pre-lotxsxijwzctq7cadhhava-983598203489.europe-west2.run.app](https://ais-pre-lotxsxijwzctq7cadhhava-983598203489.europe-west2.run.app)
-3. Look at the address bar for the **Install App** icon (represented by an overlapping screen and an arrow, or tap the top-right menu `...` and click **"Install App"** / **"Apps" > "Install this site as an app"**).
-4. Click **Install**. A desktop shortcut is generated, the app runs in a borderless window, handles native offline caching, and runs on Windows Startup if permitted.
+A future real-network architecture must add a narrowly scoped adapter to a separately operated I2P router. Router management interfaces should remain loopback-bound or isolated, authenticated, minimally privileged, and inaccessible from untrusted networks.
 
----
-
-### Method B: Native Windows Installer (Electron / Nativefier Wrapper)
-If you prefer a standalone executable (`.exe`) file running on the Windows Desktop:
-
-1. Ensure [Node.js](https://nodejs.org) is installed on your Windows machine.
-2. Run the following command in your PowerShell / Command Prompt to package the PWA into a high-performance Windows Application:
-   ```bash
-   npx nativefier --name "I2P Browser" --icon "assets/app_icon.png" --width 1280 --height 800 --single-instance "https://ais-pre-lotxsxijwzctq7cadhhava-983598203489.europe-west2.run.app"
-   ```
-3. A native folder named `I2P Browser-win32-x64` is created containing `I2P Browser.exe`.
-4. Double-click **`I2P Browser.exe`** to launch the secure client directly on your Windows Desktop!
-
----
-
-### Method C: WSA (Windows Subsystem for Android) APK Install
-For running the Android build with native system integration inside Windows 11:
-1. Enable **Windows Subsystem for Android (WSA)** or install an emulator (like BlueStacks).
-2. Download the compiled release APK of **I2P Browser** from your AI Studio repository.
-3. Install the APK via ADB command:
-   ```powershell
-   adb connect 127.0.0.1:58526
-   adb install I2P_Browser.apk
-   ```
-4. Access **I2P Browser** from your Windows Start Menu, complete with full multi-window resizing support and integration with the Windows clipboard.
-
----
-
-## 🛠️ LOCAL BUILD & COMPILATION GUIDE
-
-This project uses modern Android Gradle toolchains. To build from source:
+## Build from source
 
 ### Prerequisites
+
 - JDK 17
-- Android SDK (API 34)
+- Android SDK compatible with the project Gradle configuration
+- Android Studio or command-line Gradle tooling
 
-### Build Steps
-1. Clone this repository to your system.
-2. Open the project in **Android Studio (Koala or newer)**.
-3. Sync Gradle and run the compilation.
-4. Execute via terminal:
-   ```bash
-   # Compile Debug APK
-   ./gradlew assembleDebug
-   ```
+### Build
 
----
+```bash
+./gradlew assembleDebug
+```
 
-*Secured by the Escrow Protocol. Powered by Jetpack Compose & SQLite Room database.*
+On Windows PowerShell:
+
+```powershell
+./gradlew.bat assembleDebug
+```
+
+Run tests and static analysis available in the repository before installing any build.
+
+## Development rules
+
+1. Label simulated data and behavior explicitly in the UI and documentation.
+2. Do not describe encoding as encryption.
+3. Do not introduce custom cryptographic protocols.
+4. Keep private keys, router credentials, and operational logs out of source control.
+5. Bind router APIs to loopback or an isolated container network by default.
+6. Use least-privilege permissions in GitHub Actions, Android manifests, containers, and host scripts.
+7. Map every external security claim to code, tests, a threat model, or a verifiable release artifact.
+
+## Roadmap toward real I2P integration
+
+- Define a threat model and trust boundaries.
+- Remove placeholder cryptographic behavior.
+- Introduce a typed SAM or I2CP adapter behind an interface.
+- Keep the Android client separate from router administration.
+- Add destination-key protection using platform-backed secure storage.
+- Add integration tests against an isolated local router fixture.
+- Add IP-leak and DNS-leak test cases.
+- Add privacy-preserving telemetry with data minimization and explicit consent.
+- Complete independent security review before claiming production readiness.
+
+## Responsible use
+
+This project supports lawful privacy engineering, education, defensive security, and resilient open infrastructure. It must not be represented as providing protections that have not been implemented and independently validated.
+
+See [`SECURITY.md`](./SECURITY.md) for vulnerability reporting and [`THREAT_MODEL.md`](./THREAT_MODEL.md) for the current security analysis.
