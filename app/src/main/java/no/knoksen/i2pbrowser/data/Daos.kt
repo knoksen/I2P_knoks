@@ -1,7 +1,9 @@
 package no.knoksen.i2pbrowser.data
 
+import android.database.sqlite.SQLiteConstraintException
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.CancellationException
 
 @Dao
 interface BookmarkDao {
@@ -107,8 +109,35 @@ interface ConnectIdentityDao {
     @Query("SELECT * FROM connect_identities WHERE fingerprint = :fingerprint LIMIT 1")
     suspend fun getConnectIdentityByFingerprint(fingerprint: String): ConnectIdentity?
 
+    @Query("SELECT COUNT(*) FROM connect_identities")
+    suspend fun countConnectIdentities(): Int
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertConnectIdentity(identity: ConnectIdentity): Long
+
+    @Transaction
+    suspend fun insertOrFindConnectIdentity(identity: ConnectIdentity): ConnectIdentityInsertOutcome {
+        return try {
+            val id = insertConnectIdentity(identity)
+            ConnectIdentityInsertOutcome.Inserted(identity.copy(id = id))
+        } catch (error: SQLiteConstraintException) {
+            if (!error.isConnectIdentityFingerprintUniqueConflict()) {
+                throw error
+            }
+            val existing = try {
+                getConnectIdentityByFingerprint(identity.fingerprint)
+            } catch (lookupError: CancellationException) {
+                throw lookupError
+            } catch (_: Exception) {
+                null
+            }
+            if (existing == null) {
+                ConnectIdentityInsertOutcome.DuplicateLookupFailed
+            } else {
+                ConnectIdentityInsertOutcome.Existing(existing)
+            }
+        }
+    }
 
     @Update
     suspend fun updateConnectIdentity(identity: ConnectIdentity)
@@ -117,3 +146,14 @@ interface ConnectIdentityDao {
     suspend fun deleteConnectIdentity(identity: ConnectIdentity)
 }
 
+sealed class ConnectIdentityInsertOutcome {
+    data class Inserted(val identity: ConnectIdentity) : ConnectIdentityInsertOutcome()
+    data class Existing(val identity: ConnectIdentity) : ConnectIdentityInsertOutcome()
+    data object DuplicateLookupFailed : ConnectIdentityInsertOutcome()
+}
+
+private fun SQLiteConstraintException.isConnectIdentityFingerprintUniqueConflict(): Boolean {
+    val text = message.orEmpty()
+    return text.contains("connect_identities.fingerprint", ignoreCase = true) ||
+        text.contains("index_connect_identities_fingerprint", ignoreCase = true)
+}

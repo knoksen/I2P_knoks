@@ -3,10 +3,12 @@ package no.knoksen.i2pbrowser
 import no.knoksen.i2pbrowser.data.ConnectIdentityExportCodec
 import no.knoksen.i2pbrowser.data.ConnectIdentityFactory
 import no.knoksen.i2pbrowser.data.ConnectIdentityFingerprint
-import no.knoksen.i2pbrowser.data.ConnectIdentityImportResult
+import no.knoksen.i2pbrowser.data.ConnectIdentityDecodeResult
 import no.knoksen.i2pbrowser.data.ConnectIdentityOrigin
 import no.knoksen.i2pbrowser.data.ConnectIdentityPrivateMaterialState
 import no.knoksen.i2pbrowser.data.ConnectIdentitySecurityWarnings
+import no.knoksen.i2pbrowser.data.ConnectIdentityUnsupportedReason
+import no.knoksen.i2pbrowser.data.ConnectIdentityValidationError
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -67,8 +69,8 @@ class ConnectIdentityModelTest {
 
         val result = ConnectIdentityExportCodec.decodePublic(encoded, nowMillis = 1_700_000_001_000)
 
-        assertTrue(result is ConnectIdentityImportResult.Success)
-        val success = result as ConnectIdentityImportResult.Success
+        assertTrue(result is ConnectIdentityDecodeResult.Success)
+        val success = result as ConnectIdentityDecodeResult.Success
         assertEquals(ConnectIdentityOrigin.IMPORTED_PUBLIC_ONLY, success.identity.origin)
         assertEquals(ConnectIdentityPrivateMaterialState.MISSING_PRIVATE_MATERIAL, success.identity.privateMaterialState)
         assertEquals("missing-private-material", success.identity.privateMaterialRef)
@@ -84,8 +86,7 @@ class ConnectIdentityModelTest {
 
         val result = ConnectIdentityExportCodec.decodePublic(encoded)
 
-        assertTrue(result is ConnectIdentityImportResult.Failure)
-        assertTrue((result as ConnectIdentityImportResult.Failure).reason.contains("private material"))
+        assertEquals(ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.PRIVATE_MATERIAL_PRESENT), result)
     }
 
     @Test
@@ -95,8 +96,63 @@ class ConnectIdentityModelTest {
 
         val result = ConnectIdentityExportCodec.decodePublic(encoded)
 
-        assertTrue(result is ConnectIdentityImportResult.Failure)
-        assertTrue((result as ConnectIdentityImportResult.Failure).reason.contains("Fingerprint"))
+        assertEquals(ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.FINGERPRINT_MISMATCH), result)
+    }
+
+    @Test
+    fun `public import accepts surrounding whitespace and line ending differences`() {
+        val encoded = ConnectIdentityExportCodec.encodePublic(ConnectIdentityTestData.localIdentity())
+            .replace("\n", "\r\n")
+
+        val first = ConnectIdentityExportCodec.decodePublic(encoded)
+        val second = ConnectIdentityExportCodec.decodePublic(" \n$encoded\n ")
+
+        assertTrue(first is ConnectIdentityDecodeResult.Success)
+        assertTrue(second is ConnectIdentityDecodeResult.Success)
+        assertEquals(
+            (first as ConnectIdentityDecodeResult.Success).identity.fingerprint,
+            (second as ConnectIdentityDecodeResult.Success).identity.fingerprint
+        )
+    }
+
+    @Test
+    fun `fingerprint ignores surrounding public material whitespace but not metadata`() {
+        val first = ConnectIdentityFingerprint.from(
+            "  ${ConnectIdentityTestData.PUBLIC_DESTINATION}  ",
+            "\n${ConnectIdentityTestData.PUBLIC_APP_KEY}\t"
+        )
+        val second = ConnectIdentityFingerprint.from(
+            ConnectIdentityTestData.PUBLIC_DESTINATION,
+            ConnectIdentityTestData.PUBLIC_APP_KEY
+        )
+
+        assertEquals(first, second)
+    }
+
+    @Test
+    fun `unsupported header is classified separately from invalid content`() {
+        val result = ConnectIdentityExportCodec.decodePublic("I2P_CONNECT_IDENTITY_V99\n")
+
+        assertEquals(ConnectIdentityDecodeResult.Unsupported(ConnectIdentityUnsupportedReason.UNSUPPORTED_FORMAT), result)
+    }
+
+    @Test
+    fun `malformed percent encoding is rejected before persistence`() {
+        val encoded = ConnectIdentityExportCodec.encodePublic(ConnectIdentityTestData.localIdentity())
+            .replace("displayName=", "displayName=%")
+
+        val result = ConnectIdentityExportCodec.decodePublic(encoded)
+
+        assertEquals(ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.MALFORMED_ENCODING), result)
+    }
+
+    @Test
+    fun `oversized public identity export is rejected`() {
+        val result = ConnectIdentityExportCodec.decodePublic(
+            "I2P_CONNECT_IDENTITY_V1\n" + "x".repeat(12_001)
+        )
+
+        assertEquals(ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.TOO_LARGE), result)
     }
 }
 

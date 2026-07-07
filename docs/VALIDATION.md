@@ -52,6 +52,8 @@ Local command sequence for this matrix:
 .\gradlew.bat --no-daemon testDebugUnitTest --tests "*I2pDiagnosticsClientTest"
 .\gradlew.bat --no-daemon testDebugUnitTest --tests "*I2PViewModelCoreFlowTest"
 .\gradlew.bat --no-daemon testDebugUnitTest --tests "*LogSanitizerTest"
+.\gradlew.bat --no-daemon testDebugUnitTest --tests "*ConnectIdentityModelTest"
+.\gradlew.bat --no-daemon testDebugUnitTest --tests "*ConnectIdentityRepositoryTest"
 .\gradlew.bat testDebugUnitTest
 .\gradlew.bat test
 .\scripts\check-release-claims.ps1
@@ -64,7 +66,70 @@ Diagnostic contract tests cover injected fake transports, bounded policy validat
 
 Room migration guard tests cover the explicit migration graph, committed schema files, migration SQL shape, and the absence of destructive migration fallback in the current database builder.
 
+Public identity import tests cover canonical public-material parsing, fingerprint stability, duplicate repository outcomes, controlled concurrent duplicate imports, invalid and unsupported export rejection, bounded database-failure mapping, cancellation propagation, ViewModel-safe result categories, log redaction, and real Room/SQLite unique-index behavior when instrumentation runs.
+
 Current default automated coverage uses JVM and Robolectric tests. It does not require public I2P availability, live `.i2p` destinations, public SAM bridges, public HTTP proxies, or third-party services. SAM, HTTP proxy, and router diagnostic tests use deterministic fakes and injected transports. The current diagnostic contract tests do not bind local loopback sockets; if a future test adds sockets, it must bind only to loopback, use ephemeral ports, and close fixtures reliably.
+
+## Public Identity Import Validation
+
+The public identity import contract is limited to public identity material. It does not import private keys, prove ownership, verify contacts, enable messaging, provide secure key exchange, or prove anonymity.
+
+Canonical identity rules:
+
+- Accepted format: `I2P_CONNECT_IDENTITY_V1` followed by URL-encoded `key=value` lines.
+- Public identity equality is defined by trimmed `publicDestination` and trimmed `publicAppKey`.
+- `displayName`, timestamps, origin, and local metadata are not identity-defining.
+- Fingerprints are derived from the canonical public destination and public app key using the existing SHA-256 based helper.
+- Surrounding whitespace and supported line-ending differences are accepted.
+- Public material remains case-sensitive after trimming.
+- Maximum import text length is enforced before parsing.
+- Private-material fields, malformed fields, malformed percent encoding, missing required fields, control characters, and fingerprint mismatches are rejected before persistence.
+
+Duplicate semantics:
+
+- The first valid import creates one `connect_identities` row.
+- Later imports of the same canonical public identity return `AlreadyExists`.
+- Existing metadata is preserved on duplicate import; import does not silently overwrite labels, timestamps, origin, private-material state, or provenance.
+- SQLite's unique fingerprint index remains the final authority.
+- Duplicate constraint conflicts are mapped narrowly and followed by a lookup of the existing row.
+- Non-duplicate database failures map to bounded failure categories and must not be reported as duplicates.
+- Cancellation propagates and must not be converted into success or a generic import failure.
+
+Focused JVM commands:
+
+```powershell
+.\gradlew.bat --no-daemon testDebugUnitTest --tests "*ConnectIdentityModelTest"
+.\gradlew.bat --no-daemon testDebugUnitTest --tests "*ConnectIdentityRepositoryTest"
+.\gradlew.bat --no-daemon testDebugUnitTest --tests "*I2PViewModelCoreFlowTest"
+.\gradlew.bat --no-daemon testDebugUnitTest --tests "*LogSanitizerTest"
+```
+
+Run the public identity import instrumentation suite when an Android emulator or device is available:
+
+```powershell
+.\gradlew.bat connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=no.knoksen.i2pbrowser.ConnectIdentityImportInstrumentedTest"
+```
+
+The instrumentation suite uses a real Room version 6 database and executes first import, duplicate import, unique-index enforcement, concurrent duplicate import, distinct identity import, DAO readback, and invalid-input row-count checks. It does not require a live I2P router, public `.i2p` sites, public SAM bridges, public HTTP proxies, external endpoints, or secrets.
+
+CI uses the `Android / identity-instrumentation` job in `.github/workflows/android.yml`. Expected CI artifacts:
+
+- `connect-identity-test-results`
+- `connect-identity-logcat`
+- `connect-identity-emulator-diagnostics`
+
+Useful output locations:
+
+- JVM identity reports: `app/build/reports/tests/testDebugUnitTest/`
+- Identity instrumentation reports: `app/build/reports/androidTests/connected/`
+- Identity instrumentation raw results: `app/build/outputs/androidTest-results/connected/`
+
+Failure triage:
+
+- Parser equivalence failures belong in `ConnectIdentityModelTest`.
+- Repository idempotency, metadata-preservation, database-failure, and cancellation failures belong in `ConnectIdentityRepositoryTest`.
+- Room unique-index, DAO readback, and real SQLite concurrency failures belong in `ConnectIdentityImportInstrumentedTest`.
+- Identity ownership verification is not provided by these tests and must not be inferred from a duplicate match.
 
 ## Room Migration Validation
 
@@ -202,7 +267,7 @@ git diff --check
 Run `.\scripts\test-release-claims.ps1` when changing the claim checker or claim-safe wording policy.
 Run `.\scripts\test-clear-generated-android-build.ps1` when changing the generated-build recovery helper, validation docs, or build-lock guidance.
 Run `.\gradlew.bat testDebugUnitTest` or `.\gradlew.bat test` when changing Android source, core-flow tests, parser behavior, endpoint validation, persistence, UI copy, or test-matrix docs.
-Run the targeted `*I2pEndpointConfigTest`, `*I2pDiagnosticsClientTest`, `*I2PViewModelCoreFlowTest`, and `*LogSanitizerTest` filters when changing endpoint contracts, router diagnostic contracts, timeout/cancellation behavior, stale-result handling, or diagnostic log sanitization.
+Run the targeted `*I2pEndpointConfigTest`, `*I2pDiagnosticsClientTest`, `*I2PViewModelCoreFlowTest`, `*LogSanitizerTest`, `*ConnectIdentityModelTest`, and `*ConnectIdentityRepositoryTest` filters when changing endpoint contracts, router diagnostic contracts, timeout/cancellation behavior, stale-result handling, diagnostic log sanitization, or public identity import behavior.
 
 For release-candidate review, also use `docs/RELEASE_CANDIDATE_CHECKLIST.md`.
 

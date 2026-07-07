@@ -84,6 +84,21 @@ enum class RepositoryInitializationFailureCategory {
     MALFORMED_STORED_ENDPOINT
 }
 
+data class ConnectIdentityImportUiState(
+    val category: ConnectIdentityImportUiCategory,
+    val safeMessage: String
+)
+
+enum class ConnectIdentityImportUiCategory {
+    IMPORTED,
+    ALREADY_EXISTS,
+    INVALID,
+    UNSUPPORTED,
+    LOCAL_STORAGE_UNAVAILABLE,
+    DUPLICATE_LOOKUP_FAILED,
+    FINGERPRINT_CONFLICT
+}
+
 enum class PeerStatus {
     ACTIVE, STABLE, DEGRADED
 }
@@ -259,6 +274,10 @@ class I2PViewModel @JvmOverloads constructor(
 
     private val _activeIdentity = MutableStateFlow<Identity?>(null)
     val activeIdentity: StateFlow<Identity?> = _activeIdentity.asStateFlow()
+
+    private val _connectIdentityImportState = MutableStateFlow<ConnectIdentityImportUiState?>(null)
+    val connectIdentityImportState: StateFlow<ConnectIdentityImportUiState?> =
+        _connectIdentityImportState.asStateFlow()
 
     private val _accessedNodesHistory = MutableStateFlow<List<AccessedNode>>(
         listOf(
@@ -1053,6 +1072,19 @@ class I2PViewModel @JvmOverloads constructor(
         }
     }
 
+    fun importConnectIdentityPublic(exportText: String) {
+        viewModelScope.launch {
+            val result = try {
+                repository.importConnectIdentityPublic(exportText)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                ConnectIdentityImportResult.Failure(ConnectIdentityImportFailure.STORAGE_UNAVAILABLE)
+            }
+            _connectIdentityImportState.value = result.toUiState()
+        }
+    }
+
     fun switchIdentity(identity: Identity) {
         _activeIdentity.value = identity
         viewModelScope.launch {
@@ -1468,6 +1500,41 @@ private fun createI2PRepository(application: Application): I2PRepositoryContract
         appSettingsDao = db.appSettingsDao(),
         connectIdentityDao = db.connectIdentityDao()
     )
+}
+
+private fun ConnectIdentityImportResult.toUiState(): ConnectIdentityImportUiState {
+    return when (this) {
+        is ConnectIdentityImportResult.Imported -> ConnectIdentityImportUiState(
+            category = ConnectIdentityImportUiCategory.IMPORTED,
+            safeMessage = "Public identity imported. Ownership and trust are not verified."
+        )
+        is ConnectIdentityImportResult.AlreadyExists -> ConnectIdentityImportUiState(
+            category = ConnectIdentityImportUiCategory.ALREADY_EXISTS,
+            safeMessage = "This public identity is already stored. Existing local metadata was preserved."
+        )
+        is ConnectIdentityImportResult.Invalid -> ConnectIdentityImportUiState(
+            category = ConnectIdentityImportUiCategory.INVALID,
+            safeMessage = "The public identity export could not be imported because its format is invalid."
+        )
+        is ConnectIdentityImportResult.Unsupported -> ConnectIdentityImportUiState(
+            category = ConnectIdentityImportUiCategory.UNSUPPORTED,
+            safeMessage = "This public identity export format is not supported by this alpha."
+        )
+        is ConnectIdentityImportResult.Failure -> when (category) {
+            ConnectIdentityImportFailure.STORAGE_UNAVAILABLE -> ConnectIdentityImportUiState(
+                category = ConnectIdentityImportUiCategory.LOCAL_STORAGE_UNAVAILABLE,
+                safeMessage = "Local storage could not complete the public identity import."
+            )
+            ConnectIdentityImportFailure.DUPLICATE_LOOKUP_FAILED -> ConnectIdentityImportUiState(
+                category = ConnectIdentityImportUiCategory.DUPLICATE_LOOKUP_FAILED,
+                safeMessage = "A duplicate was detected, but the existing local record could not be loaded."
+            )
+            ConnectIdentityImportFailure.FINGERPRINT_CONFLICT -> ConnectIdentityImportUiState(
+                category = ConnectIdentityImportUiCategory.FINGERPRINT_CONFLICT,
+                safeMessage = "The fingerprint matched an existing record but the public identity material differed."
+            )
+        }
+    }
 }
 
 data class AccessedNode(

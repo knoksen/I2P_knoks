@@ -58,6 +58,24 @@ class LogSanitizerTest {
     }
 
     @Test
+    fun `redacts public identity import material and user labels`() {
+        val sanitized = LogSanitizer.sanitize(
+            "publicDestination=public-destination publicAppKey=public-app-key fingerprint=AA-BB displayName='Trusted Alice' importPayload=full-export"
+        )
+
+        assertFalse(sanitized.contains("public-destination"))
+        assertFalse(sanitized.contains("public-app-key"))
+        assertFalse(sanitized.contains("AA-BB"))
+        assertFalse(sanitized.contains("Trusted Alice"))
+        assertFalse(sanitized.contains("full-export"))
+        assertTrue(sanitized.contains("publicDestination=[redacted]"))
+        assertTrue(sanitized.contains("publicAppKey=[redacted]"))
+        assertTrue(sanitized.contains("fingerprint=[redacted]"))
+        assertTrue(sanitized.contains("displayName=[redacted]"))
+        assertTrue(sanitized.contains("importPayload=[redacted]"))
+    }
+
+    @Test
     fun `redacts endpoint identity session and query parameter fixtures`() {
         val sanitized = LogSanitizer.sanitize(
             """

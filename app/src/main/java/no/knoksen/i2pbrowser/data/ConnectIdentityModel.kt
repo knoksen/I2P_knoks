@@ -27,9 +27,57 @@ data class ConnectIdentityPublicExport(
     val warnings: List<String>
 )
 
-sealed class ConnectIdentityImportResult {
-    data class Success(val identity: ConnectIdentity, val warnings: List<String>) : ConnectIdentityImportResult()
-    data class Failure(val reason: String) : ConnectIdentityImportResult()
+data class ConnectIdentityCanonicalPublicMaterial(
+    val publicDestination: String,
+    val publicAppKey: String
+)
+
+enum class ConnectIdentityValidationError {
+    EMPTY_INPUT,
+    TOO_LARGE,
+    PRIVATE_MATERIAL_PRESENT,
+    MALFORMED_FIELD,
+    MALFORMED_ENCODING,
+    MALFORMED_CHARACTER,
+    MISSING_DISPLAY_NAME,
+    MISSING_PUBLIC_DESTINATION,
+    MISSING_PUBLIC_APP_KEY,
+    MISSING_FINGERPRINT,
+    FINGERPRINT_MISMATCH
+}
+
+enum class ConnectIdentityUnsupportedReason {
+    UNSUPPORTED_FORMAT
+}
+
+enum class ConnectIdentityImportFailure {
+    STORAGE_UNAVAILABLE,
+    DUPLICATE_LOOKUP_FAILED,
+    FINGERPRINT_CONFLICT
+}
+
+sealed class ConnectIdentityDecodeResult {
+    data class Success(val identity: ConnectIdentity, val warnings: List<String>) : ConnectIdentityDecodeResult()
+    data class Invalid(val reason: ConnectIdentityValidationError) : ConnectIdentityDecodeResult()
+    data class Unsupported(val reason: ConnectIdentityUnsupportedReason) : ConnectIdentityDecodeResult()
+}
+
+sealed interface ConnectIdentityImportResult {
+    data class Imported(
+        val identityId: Long,
+        val fingerprint: String,
+        val warnings: List<String>
+    ) : ConnectIdentityImportResult
+
+    data class AlreadyExists(
+        val identityId: Long,
+        val fingerprint: String,
+        val warnings: List<String>
+    ) : ConnectIdentityImportResult
+
+    data class Invalid(val reason: ConnectIdentityValidationError) : ConnectIdentityImportResult
+    data class Unsupported(val reason: ConnectIdentityUnsupportedReason) : ConnectIdentityImportResult
+    data class Failure(val category: ConnectIdentityImportFailure) : ConnectIdentityImportResult
 }
 
 object ConnectIdentityFactory {
@@ -41,13 +89,12 @@ object ConnectIdentityFactory {
         privateMaterialRef: String = "local-only-ref:${UUID.randomUUID()}"
     ): ConnectIdentity {
         val cleanDisplayName = displayName.trim().ifBlank { "Local I2P Connect Identity" }
-        val cleanDestination = publicDestination.trim()
-        val cleanPublicAppKey = publicAppKey.trim()
+        val publicMaterial = ConnectIdentityPublicCanonicalizer.from(publicDestination, publicAppKey)
         return ConnectIdentity(
             displayName = cleanDisplayName,
-            publicDestination = cleanDestination,
-            publicAppKey = cleanPublicAppKey,
-            fingerprint = ConnectIdentityFingerprint.from(cleanDestination, cleanPublicAppKey),
+            publicDestination = publicMaterial.publicDestination,
+            publicAppKey = publicMaterial.publicAppKey,
+            fingerprint = ConnectIdentityFingerprint.from(publicMaterial),
             privateMaterialRef = privateMaterialRef,
             privateMaterialState = ConnectIdentityPrivateMaterialState.PROTECTED_REFERENCE,
             origin = ConnectIdentityOrigin.LOCAL,
@@ -58,9 +105,28 @@ object ConnectIdentityFactory {
     }
 }
 
+object ConnectIdentityPublicCanonicalizer {
+    fun from(publicDestination: String, publicAppKey: String): ConnectIdentityCanonicalPublicMaterial {
+        return ConnectIdentityCanonicalPublicMaterial(
+            publicDestination = publicDestination.trim(),
+            publicAppKey = publicAppKey.trim()
+        )
+    }
+}
+
+fun ConnectIdentity.hasSameCanonicalPublicMaterial(other: ConnectIdentity): Boolean {
+    val thisMaterial = ConnectIdentityPublicCanonicalizer.from(publicDestination, publicAppKey)
+    val otherMaterial = ConnectIdentityPublicCanonicalizer.from(other.publicDestination, other.publicAppKey)
+    return thisMaterial == otherMaterial
+}
+
 object ConnectIdentityFingerprint {
     fun from(publicDestination: String, publicAppKey: String): String {
-        val input = "${publicDestination.trim()}|${publicAppKey.trim()}"
+        return from(ConnectIdentityPublicCanonicalizer.from(publicDestination, publicAppKey))
+    }
+
+    fun from(publicMaterial: ConnectIdentityCanonicalPublicMaterial): String {
+        val input = "${publicMaterial.publicDestination}|${publicMaterial.publicAppKey}"
         val digest = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(StandardCharsets.UTF_8))
         return digest.take(8).joinToString("-") { byte ->
             "%02X".format(Locale.US, byte)
@@ -108,53 +174,67 @@ object ConnectIdentityExportCodec {
         }
     }
 
-    fun decodePublic(text: String, nowMillis: Long = System.currentTimeMillis()): ConnectIdentityImportResult {
+    fun decodePublic(text: String, nowMillis: Long = System.currentTimeMillis()): ConnectIdentityDecodeResult {
         val trimmed = text.trim()
+        if (trimmed.isBlank()) {
+            return ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.EMPTY_INPUT)
+        }
         if (trimmed.length > MAX_IMPORT_LENGTH) {
-            return ConnectIdentityImportResult.Failure("Identity export is too large.")
+            return ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.TOO_LARGE)
         }
         if (!trimmed.lineSequence().firstOrNull().equals(HEADER)) {
-            return ConnectIdentityImportResult.Failure("Unsupported identity export format.")
+            return ConnectIdentityDecodeResult.Unsupported(ConnectIdentityUnsupportedReason.UNSUPPORTED_FORMAT)
         }
         val blocked = blockedPrivateFields.firstOrNull { field ->
             trimmed.contains(field, ignoreCase = true)
         }
         if (blocked != null) {
-            return ConnectIdentityImportResult.Failure("Import rejected because it contains private material field: $blocked.")
+            return ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.PRIVATE_MATERIAL_PRESENT)
         }
 
-        val values = trimmed.lineSequence()
-            .drop(1)
-            .mapNotNull { line ->
-                val separator = line.indexOf('=')
-                if (separator <= 0) {
-                    null
-                } else {
-                    line.substring(0, separator) to line.substring(separator + 1)
-                }
+        val encodedValues = mutableMapOf<String, String>()
+        trimmed.lineSequence().drop(1).forEach { line ->
+            if (line.isBlank()) return@forEach
+            val separator = line.indexOf('=')
+            if (separator <= 0) {
+                return ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.MALFORMED_FIELD)
             }
-            .toMap()
+            encodedValues[line.substring(0, separator)] = line.substring(separator + 1)
+        }
 
-        val displayName = values["displayName"]?.let(::decode)?.trim().orEmpty()
-        val publicDestination = values["publicDestination"]?.let(::decode)?.trim().orEmpty()
-        val publicAppKey = values["publicAppKey"]?.let(::decode)?.trim().orEmpty()
-        val fingerprint = values["fingerprint"]?.let(::decode)?.trim().orEmpty()
+        val values = mutableMapOf<String, String>()
+        for ((key, value) in encodedValues) {
+            values[key] = try {
+                decode(value).trim()
+            } catch (_: IllegalArgumentException) {
+                return ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.MALFORMED_ENCODING)
+            }
+        }
+
+        val displayName = values["displayName"].orEmpty()
+        val publicDestination = values["publicDestination"].orEmpty()
+        val publicAppKey = values["publicAppKey"].orEmpty()
+        val fingerprint = values["fingerprint"].orEmpty()
         val createdAtMillis = values["createdAtMillis"]?.toLongOrNull() ?: nowMillis
 
-        if (displayName.isBlank()) return ConnectIdentityImportResult.Failure("Missing display name.")
-        if (publicDestination.isBlank()) return ConnectIdentityImportResult.Failure("Missing public destination.")
-        if (publicAppKey.isBlank()) return ConnectIdentityImportResult.Failure("Missing public app key.")
-        if (fingerprint.isBlank()) return ConnectIdentityImportResult.Failure("Missing fingerprint.")
+        if (displayName.isBlank()) return ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.MISSING_DISPLAY_NAME)
+        if (publicDestination.isBlank()) return ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.MISSING_PUBLIC_DESTINATION)
+        if (publicAppKey.isBlank()) return ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.MISSING_PUBLIC_APP_KEY)
+        if (fingerprint.isBlank()) return ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.MISSING_FINGERPRINT)
+        if (listOf(displayName, publicDestination, publicAppKey, fingerprint).any(::hasDisallowedControlCharacter)) {
+            return ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.MALFORMED_CHARACTER)
+        }
 
-        val expectedFingerprint = ConnectIdentityFingerprint.from(publicDestination, publicAppKey)
+        val publicMaterial = ConnectIdentityPublicCanonicalizer.from(publicDestination, publicAppKey)
+        val expectedFingerprint = ConnectIdentityFingerprint.from(publicMaterial)
         if (!fingerprint.equals(expectedFingerprint, ignoreCase = true)) {
-            return ConnectIdentityImportResult.Failure("Fingerprint does not match public identity material.")
+            return ConnectIdentityDecodeResult.Invalid(ConnectIdentityValidationError.FINGERPRINT_MISMATCH)
         }
 
         val identity = ConnectIdentity(
             displayName = displayName,
-            publicDestination = publicDestination,
-            publicAppKey = publicAppKey,
+            publicDestination = publicMaterial.publicDestination,
+            publicAppKey = publicMaterial.publicAppKey,
             fingerprint = expectedFingerprint,
             privateMaterialRef = "missing-private-material",
             privateMaterialState = ConnectIdentityPrivateMaterialState.MISSING_PRIVATE_MATERIAL,
@@ -164,7 +244,7 @@ object ConnectIdentityExportCodec {
             updatedAtMillis = nowMillis
         )
 
-        return ConnectIdentityImportResult.Success(
+        return ConnectIdentityDecodeResult.Success(
             identity = identity,
             warnings = listOf(
                 ConnectIdentitySecurityWarnings.IMPORT_PUBLIC_ONLY,
@@ -179,4 +259,10 @@ object ConnectIdentityExportCodec {
 
     private fun decode(value: String): String =
         URLDecoder.decode(value, StandardCharsets.UTF_8.name())
+
+    private fun hasDisallowedControlCharacter(value: String): Boolean {
+        return value.any { char ->
+            char.isISOControl() && char != '\t'
+        }
+    }
 }
