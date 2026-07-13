@@ -100,11 +100,11 @@ async function main() {
   catch { token = randomBytes(32).toString('hex'); await writeFile(tokenPath, token, { mode: 0o600 }); }
 
   const app = Fastify({ logger: false, bodyLimit: 32_768 });
-  app.addHook('onRequest', async request => {
+  app.addHook('onRequest', async (request, reply) => {
     if (request.url === '/' || request.url.startsWith('/assets')) return;
     const supplied = request.headers.authorization?.replace(/^Bearer\s+/i, '') ?? '';
     const a = Buffer.from(supplied); const b = Buffer.from(token);
-    if (a.length !== b.length || !timingSafeEqual(a, b)) throw app.httpErrors?.unauthorized?.() ?? new Error('Unauthorized');
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return reply.code(401).send({ error: 'Unauthorized' });
   });
   await app.register(fastifyStatic, { root: join(root, 'public'), prefix: '/' });
   app.get('/v1/status', status);
@@ -116,7 +116,6 @@ async function main() {
     const body = request.body as { enabled?: boolean } | undefined; lockdown = body?.enabled !== false;
     if (lockdown) await stopRouter(); return status();
   });
-  app.get('/v1/bootstrap', async () => ({ token, dataDir }));
   await app.listen({ host: config.host, port: config.port });
   log('info', `Guardian listening on http://${config.host}:${config.port}`);
   setInterval(() => void status(), config.healthIntervalMs).unref();
