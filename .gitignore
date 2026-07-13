@@ -16,3 +16,7 @@
 local.properties
 .env
 debug.keystore
+
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md
