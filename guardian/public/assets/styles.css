@@ -1,0 +1,47 @@
+body {
+  margin: 0;
+  background: #0b1014;
+  color: #eaf3ef;
+  font: 16px system-ui, sans-serif;
+}
+
+.wrap {
+  max-width: 900px;
+  margin: auto;
+  padding: 32px;
+}
+
+.card {
+  margin: 16px 0;
+  padding: 20px;
+  border: 1px solid #2b3940;
+  border-radius: 16px;
+  background: #151d22;
+}
+
+button {
+  margin: 4px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.danger {
+  background: #d64b4b;
+  color: white;
+}
+
+.ok {
+  color: #70e0a3;
+}
+
+.muted {
+  color: #9fb0b8;
+}
+
+pre {
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
