@@ -1,0 +1,33 @@
+name: Guardian CI
+
+on:
+  push:
+    paths:
+      - 'guardian/**'
+      - '.github/workflows/guardian-ci.yml'
+  pull_request:
+    paths:
+      - 'guardian/**'
+      - '.github/workflows/guardian-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: guardian
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run check
+      - run: npm run build
