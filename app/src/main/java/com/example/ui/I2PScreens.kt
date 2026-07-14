@@ -48,6 +48,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.random.Random
 
 @Composable
 fun RouterScreen(
@@ -669,6 +670,7 @@ fun BrowserScreen(
     var bookmarkTitleInput by remember { mutableStateOf("") }
     var bookmarkSafetyInput by remember { mutableStateOf("SAFE") }
     var showRoutingDashboard by remember { mutableStateOf(true) }
+    var showActiveNodesSidebar by remember { mutableStateOf(true) }
     
     // Sync address bar when page navigates
     LaunchedEffect(tabState.url) {
@@ -788,6 +790,29 @@ fun BrowserScreen(
                         modifier = Modifier.testTag("browser_go_button")
                     ) {
                         Text("GO", fontWeight = FontWeight.Bold)
+                    }
+
+                    IconButton(
+                        onClick = { showActiveNodesSidebar = !showActiveNodesSidebar },
+                        modifier = Modifier
+                            .background(
+                                if (showActiveNodesSidebar) CyberBlue.copy(alpha = 0.15f) else CyberDarkSurface,
+                                RoundedCornerShape(12.dp)
+                            )
+                            .border(
+                                1.dp,
+                                if (showActiveNodesSidebar) CyberBlue else CyberBorder,
+                                RoundedCornerShape(12.dp)
+                            )
+                            .size(36.dp)
+                            .testTag("toggle_nodes_sidebar_button")
+                    ) {
+                        Icon(
+                            Icons.Default.Dns,
+                            contentDescription = "Toggle Darkweb Nodes",
+                            tint = if (showActiveNodesSidebar) CyberBlue else TextSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
 
@@ -1162,13 +1187,18 @@ fun BrowserScreen(
 
         Divider(color = CyberBorder)
 
-        // Web Content Render area
-        Box(
+        // Web Content Render area with collapsible active nodes sidebar
+        Row(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(16.dp)
         ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(16.dp)
+            ) {
             if (tabState.isLoading) {
                 Column(
                     modifier = Modifier.fillMaxSize(),
@@ -1540,8 +1570,22 @@ fun BrowserScreen(
                     }
                 }
             }
+            
+            if (showActiveNodesSidebar) {
+                ActiveNodesSidebar(
+                    viewModel = viewModel,
+                    onNavigate = { url ->
+                        urlInput = url
+                        viewModel.navigateBrowser(url)
+                    },
+                    modifier = Modifier
+                        .width(260.dp)
+                        .fillMaxHeight()
+                )
+            }
         }
     }
+}
 
     // Add Bookmark Dialog
     if (showBookmarkDialog) {
@@ -1634,6 +1678,454 @@ fun BrowserScreen(
             },
             containerColor = CyberDarkSurface
         )
+    }
+}
+
+data class DarkwebNode(
+    val address: String,
+    val name: String,
+    val initialLatency: Int,
+    val initialBandwidth: Float,
+    val protocol: String,
+    val encryption: String,
+    val hops: Int,
+    val initialStatus: String
+)
+
+@Composable
+fun ActiveNodesSidebar(
+    viewModel: I2PViewModel,
+    onNavigate: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var nodes by remember {
+        mutableStateOf(
+            listOf(
+                DarkwebNode("zeronet-relay.i2p", "ZeroNet Portal", 42, 2.1f, "TCP/i2p", "AES-256-GCM", 3, "ACTIVE"),
+                DarkwebNode("hydra-tunnel.i2p", "Hydra Core Relay", 280, 0.18f, "UDP/garlic", "ECIES-X25519", 4, "CONGESTED"),
+                DarkwebNode("onion-exit-us.i2p", "US Onion Exit", 85, 1.4f, "TCP/onion", "ElGamal-2048", 3, "ACTIVE"),
+                DarkwebNode("sybil-guard-01.i2p", "Sybil Sentinel", 18, 8.4f, "SOCKS5", "CHACHA20-POLY1305", 2, "ACTIVE"),
+                DarkwebNode("shadow-dir.i2p", "Shadow Directory", 145, 0.61f, "HTTP/i2p", "AES-GCM-256", 4, "SYNCING"),
+                DarkwebNode("silkroad-mirror.i2p", "SilkRoad Mirror", 999, 0f, "UNKNOWN", "RSA-4096", 5, "UNREACHABLE"),
+                DarkwebNode("blackhat-relay.i2p", "BlackHat Routing Node", 195, 0.95f, "TCP/garlic", "ECIES-X25519", 4, "ACTIVE"),
+                DarkwebNode("freenet-bridge.i2p", "Freenet Gateway", 412, 0.09f, "UDP/freenet", "CHACHA20", 5, "CONGESTED")
+            )
+        )
+    }
+
+    var selectedNodeAddress by remember { mutableStateOf<String?>(null) }
+    
+    var activePingNodeAddress by remember { mutableStateOf<String?>(null) }
+    var pingLogs by remember { mutableStateOf(listOf<String>()) }
+    var pingProgress by remember { mutableStateOf(0f) }
+
+    var activeTraceNodeAddress by remember { mutableStateOf<String?>(null) }
+    var traceHopsList by remember { mutableStateOf(listOf<String>()) }
+    var traceProgress by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(3000)
+            nodes = nodes.map { node ->
+                if (node.initialStatus == "UNREACHABLE") {
+                    node
+                } else {
+                    val latDelta = Random.nextInt(-12, 13)
+                    val newLat = (node.initialLatency + latDelta).coerceIn(10, 600)
+                    val bwDelta = (Random.nextFloat() * 0.4f - 0.2f)
+                    val newBw = (node.initialBandwidth + bwDelta).coerceIn(0.01f, 20f)
+                    val statusOpts = listOf("ACTIVE", "CONGESTED", "ACTIVE", "ACTIVE")
+                    val newStatus = if (node.initialStatus == "SYNCING") "SYNCING" else statusOpts.random()
+                    node.copy(initialLatency = newLat, initialBandwidth = newBw, initialStatus = newStatus)
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(activePingNodeAddress) {
+        val nodeAddress = activePingNodeAddress
+        if (nodeAddress != null) {
+            pingLogs = listOf("PING $nodeAddress (64 bytes of data):")
+            pingProgress = 0f
+            val targetNode = nodes.find { it.address == nodeAddress }
+            val latency = targetNode?.initialLatency ?: 100
+            
+            for (i in 1..4) {
+                delay(400)
+                pingProgress = i / 4f
+                val jitter = Random.nextInt(-5, 6)
+                if (targetNode?.initialStatus == "UNREACHABLE") {
+                    pingLogs = pingLogs + "Request timeout for icmp_seq=$i"
+                } else {
+                    pingLogs = pingLogs + "64 bytes from $nodeAddress: icmp_seq=$i ttl=64 time=${latency + jitter}ms"
+                }
+            }
+            delay(200)
+            if (targetNode?.initialStatus == "UNREACHABLE") {
+                pingLogs = pingLogs + "--- $nodeAddress ping statistics ---" + "4 packets transmitted, 0 received, 100% packet loss"
+            } else {
+                pingLogs = pingLogs + "--- $nodeAddress ping statistics ---" + "4 packets transmitted, 4 received, 0% packet loss, rtt min/avg/max = ${latency-5}/${latency}/${latency+5} ms"
+            }
+        }
+    }
+
+    LaunchedEffect(activeTraceNodeAddress) {
+        val nodeAddress = activeTraceNodeAddress
+        if (nodeAddress != null) {
+            traceHopsList = listOf("traceroute to $nodeAddress, 30 hops max, 60 byte packets")
+            traceProgress = 0f
+            val targetNode = nodes.find { it.address == nodeAddress }
+            val totalHops = targetNode?.hops ?: 3
+            
+            val simulatedIps = listOf(
+                "127.0.0.1 (localhost)",
+                "10.0.8.1 (gateway.i2p)",
+                "172.16.42.254 (router-relay.i2p)",
+                "85.203.45.109 (transit-hub.i2p)",
+                "194.50.12.82 (hop-onion.i2p)"
+            )
+
+            for (hop in 1..totalHops) {
+                delay(400)
+                traceProgress = hop / totalHops.toFloat()
+                val latency = (hop * 15) + Random.nextInt(-5, 6)
+                val ip = if (hop == totalHops) nodeAddress else simulatedIps.getOrElse(hop - 1) { "10.0.2.${Random.nextInt(10, 250)}" }
+                traceHopsList = traceHopsList + " $hop  $ip ($latency ms)"
+            }
+        }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        shape = RoundedCornerShape(0.dp),
+        border = BorderStroke(1.dp, CyberBorder),
+        modifier = modifier
+            .fillMaxHeight()
+            .testTag("darkweb_active_nodes_sidebar")
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Hub,
+                        contentDescription = "Active Nodes",
+                        tint = CyberBlue,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "DARKWEB ALIVE NODES",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "I2P / ONION DECENTRALIZED DHT",
+                            fontSize = 7.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = TextSecondary
+                        )
+                    }
+                }
+                
+                val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                val alphaPulse by infiniteTransition.animateFloat(
+                    initialValue = 0.4f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1200, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "alphaPulse"
+                )
+                
+                val onlineCount = nodes.count { it.initialStatus != "UNREACHABLE" }
+                
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .background(CyberGreen.copy(alpha = alphaPulse), CircleShape)
+                    )
+                    Text(
+                        text = "$onlineCount UP",
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = CyberGreen
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Divider(color = CyberBorder)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                items(nodes) { node ->
+                    val isSelected = selectedNodeAddress == node.address
+                    val statusColor = when (node.initialStatus) {
+                        "ACTIVE" -> CyberGreen
+                        "CONGESTED" -> CyberOrange
+                        "SYNCING" -> CyberBlue
+                        "UNREACHABLE" -> CyberRed
+                        else -> TextSecondary
+                    }
+
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) CyberCardBg else CyberBlack
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = if (isSelected) CyberBlue else CyberBorder
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedNodeAddress = if (isSelected) null else node.address
+                                activePingNodeAddress = null
+                                activeTraceNodeAddress = null
+                            }
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    val isPulsing = node.initialStatus == "ACTIVE" || node.initialStatus == "SYNCING"
+                                    val pulseAnim = if (isPulsing) {
+                                        val infiniteLocal = rememberInfiniteTransition(label = "localPulse")
+                                        infiniteLocal.animateFloat(
+                                            initialValue = 0.5f,
+                                            targetValue = 1f,
+                                            animationSpec = infiniteRepeatable(
+                                                animation = tween(800, easing = LinearEasing),
+                                                repeatMode = RepeatMode.Reverse
+                                            ),
+                                            label = "localPulseAnim"
+                                        ).value
+                                    } else 1f
+
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .background(statusColor.copy(alpha = pulseAnim), CircleShape)
+                                    )
+
+                                    Text(
+                                        text = node.address,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = if (isSelected) CyberBlue else TextPrimary
+                                    )
+                                }
+
+                                Text(
+                                    text = if (node.initialStatus == "UNREACHABLE") "ERR" else "${node.initialLatency}ms",
+                                    fontSize = 9.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (node.initialStatus == "UNREACHABLE") CyberRed else if (node.initialLatency > 250) CyberOrange else CyberGreen
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${node.protocol} | ${node.encryption}",
+                                    fontSize = 8.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = TextSecondary
+                                )
+
+                                Text(
+                                    text = if (node.initialStatus == "UNREACHABLE") "0 KB/s" else String.format("%.1f MB/s", node.initialBandwidth),
+                                    fontSize = 8.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = TextSecondary
+                                )
+                            }
+
+                            if (isSelected) {
+                                Divider(color = CyberBorder.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 4.dp))
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "HOPS TO DEST: ${node.hops}",
+                                        fontSize = 8.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = CyberYellow,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "STATUS: ${node.initialStatus}",
+                                        fontSize = 8.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = statusColor,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Button(
+                                        onClick = { onNavigate("http://${node.address}") },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = CyberBlue.copy(alpha = 0.15f),
+                                            contentColor = CyberBlue
+                                        ),
+                                        border = BorderStroke(1.dp, CyberBlue.copy(alpha = 0.3f)),
+                                        contentPadding = PaddingValues(0.dp),
+                                        shape = RoundedCornerShape(4.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(24.dp)
+                                    ) {
+                                        Text("OPEN", fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            activeTraceNodeAddress = null
+                                            activePingNodeAddress = node.address
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = CyberGreen.copy(alpha = 0.15f),
+                                            contentColor = CyberGreen
+                                        ),
+                                        border = BorderStroke(1.dp, CyberGreen.copy(alpha = 0.3f)),
+                                        contentPadding = PaddingValues(0.dp),
+                                        shape = RoundedCornerShape(4.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(24.dp)
+                                    ) {
+                                        Text("PING", fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            activePingNodeAddress = null
+                                            activeTraceNodeAddress = node.address
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = CyberPurple.copy(alpha = 0.15f),
+                                            contentColor = CyberPurple
+                                        ),
+                                        border = BorderStroke(1.dp, CyberPurple.copy(alpha = 0.3f)),
+                                        contentPadding = PaddingValues(0.dp),
+                                        shape = RoundedCornerShape(4.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(24.dp)
+                                    ) {
+                                        Text("TRACE", fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                    }
+                                }
+
+                                if (activePingNodeAddress == node.address) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(CyberBlack, RoundedCornerShape(4.dp))
+                                            .border(0.5.dp, CyberBorder, RoundedCornerShape(4.dp))
+                                            .padding(6.dp)
+                                    ) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("TERMINAL PING MONITOR", fontSize = 7.sp, color = CyberGreen, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                                if (pingProgress < 1f) {
+                                                    CircularProgressIndicator(modifier = Modifier.size(8.dp), strokeWidth = 1.dp, color = CyberGreen)
+                                                } else {
+                                                    Icon(imageVector = Icons.Default.Check, contentDescription = "Done", tint = CyberGreen, modifier = Modifier.size(10.dp))
+                                                }
+                                            }
+                                            Divider(color = CyberBorder.copy(alpha = 0.4f))
+                                            pingLogs.forEach { logLine ->
+                                                Text(text = logLine, fontSize = 7.sp, color = TextPrimary, fontFamily = FontFamily.Monospace, lineHeight = 9.sp)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (activeTraceNodeAddress == node.address) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(CyberBlack, RoundedCornerShape(4.dp))
+                                            .border(0.5.dp, CyberBorder, RoundedCornerShape(4.dp))
+                                            .padding(6.dp)
+                                    ) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("DECENTRALIZED ROUTE HOPS", fontSize = 7.sp, color = CyberPurple, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                                if (traceProgress < 1f) {
+                                                    CircularProgressIndicator(modifier = Modifier.size(8.dp), strokeWidth = 1.dp, color = CyberPurple)
+                                                } else {
+                                                    Icon(imageVector = Icons.Default.Check, contentDescription = "Done", tint = CyberPurple, modifier = Modifier.size(10.dp))
+                                                }
+                                            }
+                                            Divider(color = CyberBorder.copy(alpha = 0.4f))
+                                            traceHopsList.forEach { logLine ->
+                                                Text(text = logLine, fontSize = 7.sp, color = TextPrimary, fontFamily = FontFamily.Monospace, lineHeight = 9.sp)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -2320,6 +2812,54 @@ fun RenderWebpageContents(url: String, viewModel: I2PViewModel, onNavigate: (Str
     when {
         url.contains("127.0.0.1:7657") || url.contains("localhost:7657") || url.contains("router-console") -> {
             RouterConsoleWebUI(viewModel = viewModel, onNavigate = onNavigate)
+        }
+        url.contains("zeronet-relay.i2p") -> {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("ZERONET PORTAL - DECENTRALIZED DATA EXCHANGE", style = MaterialTheme.typography.bodySmall, color = CyberBlue, fontWeight = FontWeight.Bold)
+                Text(
+                    "This portal indexes active torrent and content hashes stored directly on peer-to-peer databases. All resources are served without a centralized web hosting server.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary
+                )
+                Divider(color = CyberBorder)
+                Text("Featured ZeroNet Sites:", style = MaterialTheme.typography.bodyMedium, color = CyberGreen, fontWeight = FontWeight.Bold)
+                Text("• ZeroBlog - Personal encryption journals", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                Text("• ZeroMail - Cryptographic inbox system", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+            }
+        }
+        url.contains("hydra-tunnel.i2p") -> {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("HYDRA CORE RELAY OVERVIEW", style = MaterialTheme.typography.bodySmall, color = CyberOrange, fontWeight = FontWeight.Bold)
+                Text(
+                    "Welcome to Hydra Core. This node serves as a primary multi-hop garlic tunnel relay. Traffic is bundled, layered with multiple asymmetric encryptions, and dispatched to down-stream tunnel peers.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary
+                )
+                Divider(color = CyberBorder)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column {
+                        Text("Active Tunnel Hops", fontSize = 10.sp, color = TextSecondary)
+                        Text("4 Hops", fontSize = 14.sp, color = CyberOrange, fontWeight = FontWeight.Bold)
+                    }
+                    Column {
+                        Text("Bandwidth Cap", fontSize = 10.sp, color = TextSecondary)
+                        Text("512 KB/s (Restricted)", fontSize = 14.sp, color = CyberOrange, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        url.contains("onion-exit-us.i2p") -> {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("TOR GATEWAY EXIT CHECKPOINT", style = MaterialTheme.typography.bodySmall, color = CyberGreen, fontWeight = FontWeight.Bold)
+                Text(
+                    "You are accessing a high-speed exit node that bridges onion-routed clearweb traffic with private internal garlic layers. Your payload transit is secured under 2048-bit ElGamal keys.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary
+                )
+                Divider(color = CyberBorder)
+                Text("Transit Country: United States (West Coast)", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                Text("Server Load: 12% (Highly Available)", style = MaterialTheme.typography.bodySmall, color = CyberGreen)
+            }
         }
         url.contains("i2p-project.i2p") -> {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
