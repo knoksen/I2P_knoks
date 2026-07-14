@@ -44,7 +44,6 @@ export async function buildGuardianApp(options: BuildGuardianAppOptions): Promis
     }
   });
 
-  await app.register(rateLimit, { global: false, hook: 'preHandler' });
   if (options.publicRoot) {
     await app.register(fastifyStatic, { root: options.publicRoot, prefix: '/' });
   }
@@ -52,33 +51,35 @@ export async function buildGuardianApp(options: BuildGuardianAppOptions): Promis
   app.get('/v1/status', async () => options.operations.status());
   app.get('/v1/logs', async () => ({ logs: options.operations.logs().slice(-200) }));
 
-  app.post('/v1/router/start', {
-    config: { rateLimit: { max: 6, timeWindow: '1 minute', groupId: 'guardian-control' } }
-  }, async () => {
-    await options.operations.start();
-    return options.operations.status();
-  });
+  await app.register(async controlRoutes => {
+    await controlRoutes.register(rateLimit, {
+      global: true,
+      max: 6,
+      timeWindow: '1 minute',
+      hook: 'preHandler',
+      keyGenerator: request => `${request.ip}:guardian-control`
+    });
 
-  app.post('/v1/router/stop', {
-    config: { rateLimit: { max: 6, timeWindow: '1 minute', groupId: 'guardian-control' } }
-  }, async () => {
-    await options.operations.stop();
-    return options.operations.status();
-  });
+    controlRoutes.post('/v1/router/start', async () => {
+      await options.operations.start();
+      return options.operations.status();
+    });
 
-  app.post('/v1/router/restart', {
-    config: { rateLimit: { max: 6, timeWindow: '1 minute', groupId: 'guardian-control' } }
-  }, async () => {
-    await options.operations.restart();
-    return options.operations.status();
-  });
+    controlRoutes.post('/v1/router/stop', async () => {
+      await options.operations.stop();
+      return options.operations.status();
+    });
 
-  app.post('/v1/lockdown', {
-    config: { rateLimit: { max: 6, timeWindow: '1 minute', groupId: 'guardian-control' } }
-  }, async request => {
-    const body = request.body as { enabled?: boolean } | undefined;
-    await options.operations.setLockdown(body?.enabled !== false);
-    return options.operations.status();
+    controlRoutes.post('/v1/router/restart', async () => {
+      await options.operations.restart();
+      return options.operations.status();
+    });
+
+    controlRoutes.post('/v1/lockdown', async request => {
+      const body = request.body as { enabled?: boolean } | undefined;
+      await options.operations.setLockdown(body?.enabled !== false);
+      return options.operations.status();
+    });
   });
 
   return app;
