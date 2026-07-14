@@ -1,13 +1,12 @@
-import Fastify from 'fastify';
-import rateLimit from '@fastify/rate-limit';
-import fastifyStatic from '@fastify/static';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, normalize, parse, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
+import { buildGuardianApp, type GuardianLog, type GuardianOperations } from './http.js';
+import { deriveHealthState, shouldRestartRouter, type State } from './lifecycle.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
@@ -15,7 +14,6 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1']);
 const RESTART_RESET_MS = 10 * 60_000;
 
 type LoopbackHost = '127.0.0.1' | '::1';
-type State = 'stopped' | 'starting' | 'connected' | 'degraded' | 'stopping' | 'failed';
 type Config = {
   host: LoopbackHost;
   routerHost: LoopbackHost;
@@ -87,7 +85,7 @@ let shouldRun = false;
 let restartTimer: NodeJS.Timeout | undefined;
 let stableTimer: NodeJS.Timeout | undefined;
 let shuttingDown = false;
-const logs: { at: string; level: string; message: string }[] = [];
+const logs: GuardianLog[] = [];
 
 function log(level: string, message: string) {
   const entry = { at: new Date().toISOString(), level, message };
@@ -220,8 +218,8 @@ async function status() {
   ]);
   if (child && state !== 'stopping') {
     const startupGraceMs = Math.max(10_000, config.healthIntervalMs * 2);
-    const withinStartupGrace = startedAt !== undefined && Date.now() - startedAt < startupGraceMs;
-    state = consoleUp ? 'connected' : withinStartupGrace ? 'starting' : 'degraded';
+    const elapsedMs = startedAt === undefined ? startupGraceMs : Date.now() - startedAt;
+    state = deriveHealthState(consoleUp, elapsedMs, startupGraceMs);
   }
   const routerAddress = (port: number) => formatHostPort(config.routerHost, port);
   return {
@@ -241,8 +239,19 @@ async function status() {
   };
 }
 
+function restartAllowed(): boolean {
+  return shouldRestartRouter({
+    shouldRun,
+    lockdown,
+    state,
+    restartOnFailure: config.restartOnFailure,
+    restarts,
+    maxRestarts: config.maxRestarts
+  });
+}
+
 function scheduleRestart() {
-  if (!shouldRun || lockdown || !config.restartOnFailure || restarts >= config.maxRestarts) return;
+  if (!restartAllowed()) return;
   restarts += 1;
   const delay = Math.min(30_000, 1000 * 2 ** restarts);
   log('warn', `Scheduling i2pd restart ${restarts}/${config.maxRestarts} in ${delay}ms`);
@@ -284,6 +293,7 @@ function startRouter() {
     finalized = true;
     clearStableTimer();
     const intentional = !shouldRun || lockdown || state === 'stopping';
+    const shouldRestart = restartAllowed();
     if (child === active) child = undefined;
     startedAt = undefined;
 
@@ -297,7 +307,7 @@ function startRouter() {
     }
 
     state = intentional ? 'stopped' : 'failed';
-    if (!intentional) scheduleRestart();
+    if (shouldRestart) scheduleRestart();
   };
 
   active.once('error', error => { finalize(null, null, error); });
@@ -332,60 +342,29 @@ async function stopRouter() {
   });
 }
 
-function isPublicDashboardRequest(method: string, url: string): boolean {
-  if (method !== 'GET' && method !== 'HEAD') return false;
-  const queryIndex = url.indexOf('?');
-  const pathname = queryIndex >= 0 ? url.slice(0, queryIndex) : url;
-  return pathname === '/' || pathname === '/index.html' || pathname === '/favicon.ico' || pathname.startsWith('/assets/');
+async function restartRouter() {
+  await stopRouter();
+  restarts = 0;
+  startRouter();
+}
+
+async function setLockdown(enabled: boolean) {
+  lockdown = enabled;
+  if (lockdown) await stopRouter();
 }
 
 async function main() {
   await loadConfig();
   const token = await loadToken();
-  const app = Fastify({ logger: false, bodyLimit: 32_768 });
-
-  app.addHook('onRequest', async (request, reply) => {
-    if (isPublicDashboardRequest(request.method, request.url)) return;
-    const supplied = request.headers.authorization?.replace(/^Bearer\s+/i, '') ?? '';
-    const suppliedBuffer = Buffer.from(supplied);
-    const tokenBuffer = Buffer.from(token);
-    if (suppliedBuffer.length !== tokenBuffer.length || !timingSafeEqual(suppliedBuffer, tokenBuffer)) {
-      await reply.code(401).send({ error: 'Unauthorized' });
-    }
-  });
-
-  await app.register(rateLimit, { global: false, hook: 'preHandler' });
-  await app.register(fastifyStatic, { root: join(root, 'public'), prefix: '/' });
-  app.get('/v1/status', status);
-  app.get('/v1/logs', async () => ({ logs: logs.slice(-200) }));
-  app.post('/v1/router/start', {
-    config: { rateLimit: { max: 6, timeWindow: '1 minute', groupId: 'guardian-control' } }
-  }, async () => {
-    startRouter();
-    return status();
-  });
-  app.post('/v1/router/stop', {
-    config: { rateLimit: { max: 6, timeWindow: '1 minute', groupId: 'guardian-control' } }
-  }, async () => {
-    await stopRouter();
-    return status();
-  });
-  app.post('/v1/router/restart', {
-    config: { rateLimit: { max: 6, timeWindow: '1 minute', groupId: 'guardian-control' } }
-  }, async () => {
-    await stopRouter();
-    restarts = 0;
-    startRouter();
-    return status();
-  });
-  app.post('/v1/lockdown', {
-    config: { rateLimit: { max: 6, timeWindow: '1 minute', groupId: 'guardian-control' } }
-  }, async request => {
-    const body = request.body as { enabled?: boolean } | undefined;
-    lockdown = body?.enabled !== false;
-    if (lockdown) await stopRouter();
-    return status();
-  });
+  const operations: GuardianOperations = {
+    status,
+    logs: () => [...logs],
+    start: () => { startRouter(); },
+    stop: stopRouter,
+    restart: restartRouter,
+    setLockdown
+  };
+  const app = await buildGuardianApp({ token, operations, publicRoot: join(root, 'public') });
 
   await app.listen({ host: config.host, port: config.port });
   log('info', `Guardian listening on http://${formatHostPort(config.host, config.port)}`);
@@ -410,7 +389,10 @@ async function main() {
   process.once('SIGTERM', async () => { await shutdown('SIGTERM'); });
 }
 
-main().catch(error => {
-  console.error(error);
-  process.exitCode = 1;
-});
+const entrypoint = process.argv[1];
+if (entrypoint && resolve(entrypoint) === fileURLToPath(import.meta.url)) {
+  main().catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
