@@ -5,6 +5,11 @@ import { buildGuardianApp, type GuardianOperations } from './http.js';
 const token = 'a'.repeat(64);
 const authorization = { authorization: `Bearer ${token}` };
 
+type ControlRequest = {
+  url: string;
+  payload?: { enabled: boolean };
+};
+
 function fakeOperations() {
   const calls = {
     start: 0,
@@ -47,7 +52,7 @@ test('control routes share one six-request rate-limit bucket', async t => {
   const app = await buildGuardianApp({ token, operations });
   t.after(async () => { await app.close(); });
 
-  const requests = [
+  const requests: ControlRequest[] = [
     { url: '/v1/router/start' },
     { url: '/v1/router/stop' },
     { url: '/v1/router/restart' },
@@ -57,12 +62,18 @@ test('control routes share one six-request rate-limit bucket', async t => {
   ];
 
   for (const request of requests) {
-    const response = await app.inject({
-      method: 'POST',
-      url: request.url,
-      headers: authorization,
-      payload: request.payload
-    });
+    const response = request.payload
+      ? await app.inject({
+        method: 'POST',
+        url: request.url,
+        headers: authorization,
+        payload: request.payload
+      })
+      : await app.inject({
+        method: 'POST',
+        url: request.url,
+        headers: authorization
+      });
     assert.equal(response.statusCode, 200);
   }
 
