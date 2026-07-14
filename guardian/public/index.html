@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
+  <title>I2P Knoks Guardian</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <main class="wrap">
+    <h1>I2P Knoks Guardian</h1>
+    <p class="muted">Local-only I2P process supervision and health control.</p>
+    <section class="card">
+      <h2 id="state">Loading…</h2>
+      <p id="details"></p>
+      <p>
+        <button id="start" type="button">Start</button>
+        <button id="restart" type="button">Restart</button>
+        <button id="stop" type="button">Stop</button>
+        <button id="lockdown" class="danger" type="button">Lockdown</button>
+      </p>
+    </section>
+    <section class="card">
+      <h3>Recent logs</h3>
+      <pre id="logs"></pre>
+    </section>
+  </main>
+  <script type="module" src="/assets/app.js"></script>
+</body>
+</html>
