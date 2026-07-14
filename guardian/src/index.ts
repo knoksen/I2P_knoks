@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
@@ -106,13 +107,25 @@ async function main() {
     const a = Buffer.from(supplied); const b = Buffer.from(token);
     if (a.length !== b.length || !timingSafeEqual(a, b)) return reply.code(401).send({ error: 'Unauthorized' });
   });
+  await app.register(rateLimit, {
+    global: false,
+    hook: 'preHandler'
+  });
   await app.register(fastifyStatic, { root: join(root, 'public'), prefix: '/' });
   app.get('/v1/status', status);
   app.get('/v1/logs', async () => ({ logs: logs.slice(-200) }));
-  app.post('/v1/router/start', async () => { startRouter(); return status(); });
-  app.post('/v1/router/stop', async () => { await stopRouter(); return status(); });
-  app.post('/v1/router/restart', async () => { await stopRouter(); restarts = 0; startRouter(); return status(); });
-  app.post('/v1/lockdown', async request => {
+  app.post('/v1/router/start', {
+    config: { rateLimit: { max: 6, timeWindow: '1 minute', groupId: 'guardian-control' } }
+  }, async () => { startRouter(); return status(); });
+  app.post('/v1/router/stop', {
+    config: { rateLimit: { max: 6, timeWindow: '1 minute', groupId: 'guardian-control' } }
+  }, async () => { await stopRouter(); return status(); });
+  app.post('/v1/router/restart', {
+    config: { rateLimit: { max: 6, timeWindow: '1 minute', groupId: 'guardian-control' } }
+  }, async () => { await stopRouter(); restarts = 0; startRouter(); return status(); });
+  app.post('/v1/lockdown', {
+    config: { rateLimit: { max: 6, timeWindow: '1 minute', groupId: 'guardian-control' } }
+  }, async request => {
     const body = request.body as { enabled?: boolean } | undefined; lockdown = body?.enabled !== false;
     if (lockdown) await stopRouter(); return status();
   });
