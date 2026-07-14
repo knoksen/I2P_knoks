@@ -52,6 +52,7 @@ class MainActivity : ComponentActivity() {
                 var currentTab by remember { mutableStateOf(AppTab.ROUTER) }
                 val routerState by viewModel.routerState.collectAsState()
                 var showProxySettingsDialog by remember { mutableStateOf(false) }
+                var showComplianceScreen by remember { mutableStateOf(false) }
 
                 LaunchedEffect(viewModel) {
                     viewModel.activeTabFlow.collect { tabName ->
@@ -63,17 +64,23 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                ModalNavigationDrawer(
-                    drawerState = drawerState,
-                    drawerContent = {
-                        DrawerContent(
-                            viewModel = viewModel,
-                            onClose = {
-                                coroutineScope.launch { drawerState.close() }
-                            }
-                        )
-                    }
-                ) {
+                if (showComplianceScreen) {
+                    PlayComplianceScreen(
+                        onBack = { showComplianceScreen = false },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    ModalNavigationDrawer(
+                        drawerState = drawerState,
+                        drawerContent = {
+                            DrawerContent(
+                                viewModel = viewModel,
+                                onClose = {
+                                    coroutineScope.launch { drawerState.close() }
+                                }
+                            )
+                        }
+                    ) {
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
@@ -145,6 +152,18 @@ class MainActivity : ComponentActivity() {
                                                     fontWeight = FontWeight.Bold
                                                 )
                                             }
+                                        }
+
+                                        IconButton(
+                                            onClick = { showComplianceScreen = true },
+                                            modifier = Modifier.size(36.dp).testTag("play_compliance_button")
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Assignment,
+                                                contentDescription = "Google Play Policy Compliance Auditor",
+                                                tint = CyberGreen,
+                                                modifier = Modifier.size(24.dp)
+                                            )
                                         }
 
                                         IconButton(
@@ -232,6 +251,7 @@ class MainActivity : ComponentActivity() {
                             onDismiss = { showProxySettingsDialog = false }
                         )
                     }
+                }
                 }
             }
         }
