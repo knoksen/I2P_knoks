@@ -996,6 +996,12 @@ class I2PViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun insertSecureMessage(message: SecureMessage) {
+        viewModelScope.launch {
+            db.secureMessageDao().insertMessage(message)
+        }
+    }
+
     fun decryptSecureMessage(msg: SecureMessage) {
         val activeId = _activeIdentity.value
         if (activeId == null) {

@@ -36,7 +36,8 @@ enum class AppTab(val label: String, val icon: androidx.compose.ui.graphics.vect
     BROWSER("Browser", Icons.Default.Language),
     VPN_VPS("VPN & VPS", Icons.Default.VpnLock),
     COMMS("Secure Chat", Icons.Default.Forum),
-    IDENTITY("Identity", Icons.Default.Fingerprint)
+    IDENTITY("Identity", Icons.Default.Fingerprint),
+    METAHUMAN("MetaHuman", Icons.Default.SmartToy)
 }
 
 class MainActivity : ComponentActivity() {
@@ -220,6 +221,7 @@ class MainActivity : ComponentActivity() {
                                 AppTab.VPN_VPS -> VpnVpsScreen(viewModel = viewModel)
                                 AppTab.COMMS -> CommunicationsScreen(viewModel = viewModel)
                                 AppTab.IDENTITY -> IdentityScreen(viewModel = viewModel)
+                                AppTab.METAHUMAN -> MetaHumanScreen(viewModel = viewModel)
                             }
                         }
                     }

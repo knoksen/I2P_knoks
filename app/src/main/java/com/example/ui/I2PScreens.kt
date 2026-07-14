@@ -49,6 +49,9 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.random.Random
+import android.webkit.WebView
+import android.webkit.JavascriptInterface
+import androidx.compose.ui.viewinterop.AndroidView
 
 @Composable
 fun RouterScreen(
@@ -3737,7 +3740,8 @@ fun WebpageHyperlink(text: String, url: String, onNavigate: (String) -> Unit) {
 enum class CommsSubTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     GARLIC_CHAT("Garlic Chat", Icons.Default.Forum),
     GPS_EMULATOR("GPS Emulator", Icons.Default.LocationOn),
-    TERMINAL_CRYPTOR("Terminal Cryptor", Icons.Default.Code)
+    TERMINAL_CRYPTOR("Terminal Cryptor", Icons.Default.Code),
+    WEB_CRYPTO("Web Crypto API", Icons.Default.VpnKey)
 }
 
 @Composable
@@ -3795,6 +3799,7 @@ fun CommunicationsScreen(
             CommsSubTab.GARLIC_CHAT -> GarlicChatTab(viewModel = viewModel)
             CommsSubTab.GPS_EMULATOR -> GpsEmulatorTab(viewModel = viewModel)
             CommsSubTab.TERMINAL_CRYPTOR -> TerminalCryptorTab(viewModel = viewModel)
+            CommsSubTab.WEB_CRYPTO -> WebCryptoTab(viewModel = viewModel)
         }
     }
 }
@@ -11624,6 +11629,1491 @@ fun RouterConsoleWebUI(
                                         fontSize = 10.sp,
                                         fontFamily = FontFamily.Monospace
                                     )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+class WebCryptoBridge(
+    private val onKeyGenerated: (String, String) -> Unit,
+    private val onEncrypted: (String) -> Unit,
+    private val onDecrypted: (String) -> Unit,
+    private val onError: (String) -> Unit,
+    private val onLog: (String) -> Unit,
+    private val onPeerKeyGenerated: (String, String) -> Unit = { _, _ -> },
+    private val onMsgEncrypted: (String) -> Unit = {},
+    private val onMsgDecrypted: (String) -> Unit = {},
+    private val onIncomingReplyEncrypted: (String) -> Unit = {}
+) {
+    @JavascriptInterface
+    fun handleKeyGenerated(publicKey: String, privateKey: String, format: String, jsLog: String) {
+        onKeyGenerated(publicKey, privateKey)
+    }
+
+    @JavascriptInterface
+    fun handleEncrypted(ciphertext: String, jsLog: String) {
+        onEncrypted(ciphertext)
+    }
+
+    @JavascriptInterface
+    fun handleDecrypted(plaintext: String, jsLog: String) {
+        onDecrypted(plaintext)
+    }
+
+    @JavascriptInterface
+    fun handleError(error: String) {
+        onError(error)
+    }
+
+    @JavascriptInterface
+    fun logFromJs(message: String) {
+        onLog(message)
+    }
+
+    @JavascriptInterface
+    fun handlePeerKeyGenerated(publicKey: String, privateKey: String) {
+        onPeerKeyGenerated(publicKey, privateKey)
+    }
+
+    @JavascriptInterface
+    fun handleMsgEncrypted(ciphertext: String) {
+        onMsgEncrypted(ciphertext)
+    }
+
+    @JavascriptInterface
+    fun handleMsgDecrypted(plaintext: String) {
+        onMsgDecrypted(plaintext)
+    }
+
+    @JavascriptInterface
+    fun handleIncomingReplyEncrypted(ciphertext: String) {
+        onIncomingReplyEncrypted(ciphertext)
+    }
+}
+
+@Composable
+fun WebCryptoTab(
+    viewModel: I2PViewModel,
+    modifier: Modifier = Modifier
+) {
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+
+    var selectedAlgorithm by remember { mutableStateOf("RSA-OAEP") } // "RSA-OAEP" or "ECDH"
+    var selectedModulusLength by remember { mutableStateOf("2048") } // "1024", "2048", "4096"
+    var selectedHashAlgo by remember { mutableStateOf("SHA-256") } // "SHA-1", "SHA-256", "SHA-512"
+    var selectedCurve by remember { mutableStateOf("P-256") } // "P-256", "P-384", "P-521"
+
+    var generatedPublicKey by remember { mutableStateOf("") }
+    var generatedPrivateKey by remember { mutableStateOf("") }
+
+    var encryptPlaintext by remember { mutableStateOf("") }
+    var encryptedCiphertext by remember { mutableStateOf("") }
+    var decryptCiphertextInput by remember { mutableStateOf("") }
+    var decryptedPlaintextResult by remember { mutableStateOf("") }
+
+    // Messaging states
+    var selectedContactForMsg by remember { mutableStateOf<Contact?>(null) }
+    var showContactDropdown by remember { mutableStateOf(false) }
+    var localMsgPlaintext by remember { mutableStateOf("") }
+    var locallyEncryptedPayload by remember { mutableStateOf("") }
+    var isLocalMessagingEncrypting by remember { mutableStateOf(false) }
+    var isPeerKeyGenerating by remember { mutableStateOf(false) }
+    val peerPrivateKeys = remember { mutableStateMapOf<String, String>() }
+    val decryptedMessages = remember { mutableStateMapOf<Long, String>() }
+    var activeDecryptingId by remember { mutableStateOf<Long?>(null) }
+
+    val liveLogs = remember { mutableStateListOf<String>() }
+    var isGeneratingKeys by remember { mutableStateOf(false) }
+    var isEncrypting by remember { mutableStateOf(false) }
+    var isDecrypting by remember { mutableStateOf(false) }
+
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val logsScrollState = rememberScrollState()
+    var selectedKeyTab by remember { mutableStateOf("PUBLIC") } // "PUBLIC" or "PRIVATE"
+
+    // Scroll logs to bottom automatically
+    LaunchedEffect(liveLogs.size) {
+        logsScrollState.animateScrollTo(logsScrollState.maxValue)
+    }
+
+    val htmlContent = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta charset="utf-8">
+        <script>
+        let generatedKeypair = null;
+
+        function log(msg) {
+            AndroidBridge.logFromJs(msg);
+        }
+
+        async function generateKeyPair(algoName, modulusLength, hashAlgo, namedCurve) {
+            try {
+                log("Executing window.crypto.subtle.generateKey...");
+                let keyGenParams = {};
+                let usages = [];
+                
+                if (algoName === "RSA-OAEP") {
+                    keyGenParams = {
+                        name: "RSA-OAEP",
+                        modulusLength: parseInt(modulusLength),
+                        publicExponent: new Uint8Array([1, 0, 1]),
+                        hash: hashAlgo
+                    };
+                    usages = ["encrypt", "decrypt"];
+                } else if (algoName === "ECDH") {
+                    keyGenParams = {
+                        name: "ECDH",
+                        namedCurve: namedCurve
+                    };
+                    usages = ["deriveKey", "deriveBits"];
+                }
+                
+                log("Parameters: " + JSON.stringify(keyGenParams));
+                
+                generatedKeypair = await window.crypto.subtle.generateKey(keyGenParams, true, usages);
+                log("Keypair successfully generated.");
+                
+                log("Exporting Public Key to JWK...");
+                const pubJwk = await window.crypto.subtle.exportKey("jwk", generatedKeypair.publicKey);
+                log("Exporting Private Key to JWK...");
+                const privJwk = await window.crypto.subtle.exportKey("jwk", generatedKeypair.privateKey);
+                
+                log("Export completed.");
+                AndroidBridge.handleKeyGenerated(
+                    JSON.stringify(pubJwk, null, 2),
+                    JSON.stringify(privJwk, null, 2),
+                    "JWK",
+                    "Success"
+                );
+            } catch (e) {
+                log("Error during key generation: " + e.message);
+                AndroidBridge.handleError(e.message);
+            }
+        }
+
+        async function encryptMessage(publicKeyJwkJson, plaintext, algoName, hashAlgo, namedCurve) {
+            try {
+                log("Importing public JWK for encryption...");
+                const pubJwk = JSON.parse(publicKeyJwkJson);
+                
+                let importParams = {};
+                let usages = [];
+                if (algoName === "RSA-OAEP") {
+                    importParams = { name: "RSA-OAEP", hash: hashAlgo };
+                    usages = ["encrypt"];
+                } else if (algoName === "ECDH") {
+                    importParams = { name: "ECDH", namedCurve: namedCurve };
+                    usages = [];
+                }
+                
+                const publicKey = await window.crypto.subtle.importKey(
+                    "jwk",
+                    pubJwk,
+                    importParams,
+                    true,
+                    usages
+                );
+                
+                log("Public key imported.");
+                
+                if (algoName === "RSA-OAEP") {
+                    const encoder = new TextEncoder();
+                    const data = encoder.encode(plaintext);
+                    
+                    log("Encrypting with RSA-OAEP...");
+                    const encryptedBuffer = await window.crypto.subtle.encrypt(
+                        { name: "RSA-OAEP" },
+                        publicKey,
+                        data
+                    );
+                    
+                    const base64 = btoa(String.fromCharCode(...new Uint8Array(encryptedBuffer)));
+                    log("Encryption completed.");
+                    AndroidBridge.handleEncrypted(base64, "Success");
+                } else {
+                    log("Error: ECDH cannot encrypt directly without derivation.");
+                    AndroidBridge.handleError("ECDH cannot encrypt directly without a derived symmetric key.");
+                }
+            } catch (e) {
+                log("Encryption error: " + e.message);
+                AndroidBridge.handleError(e.message);
+            }
+        }
+
+        async function decryptMessage(privateKeyJwkJson, base64Ciphertext, algoName, hashAlgo, namedCurve) {
+            try {
+                log("Importing private JWK for decryption...");
+                const privJwk = JSON.parse(privateKeyJwkJson);
+                
+                let importParams = {};
+                let usages = [];
+                if (algoName === "RSA-OAEP") {
+                    importParams = { name: "RSA-OAEP", hash: hashAlgo };
+                    usages = ["decrypt"];
+                }
+                
+                const privateKey = await window.crypto.subtle.importKey(
+                    "jwk",
+                    privJwk,
+                    importParams,
+                    true,
+                    usages
+                );
+                
+                log("Private key imported.");
+                
+                if (algoName === "RSA-OAEP") {
+                    log("Decoding Base64 ciphertext...");
+                    const binaryDer = atob(base64Ciphertext);
+                    const bytes = new Uint8Array(binaryDer.length);
+                    for (let i = 0; i < binaryDer.length; i++) {
+                        bytes[i] = binaryDer.charCodeAt(i);
+                    }
+                    
+                    log("Decrypting with RSA-OAEP...");
+                    const decryptedBuffer = await window.crypto.subtle.decrypt(
+                        { name: "RSA-OAEP" },
+                        privateKey,
+                        bytes
+                    );
+                    
+                    const decoder = new TextDecoder();
+                    const decryptedText = decoder.decode(decryptedBuffer);
+                    log("Decryption completed.");
+                    AndroidBridge.handleDecrypted(decryptedText, "Success");
+                } else {
+                    log("Error: ECDH cannot decrypt directly without derivation.");
+                    AndroidBridge.handleError("ECDH cannot decrypt directly without a derived symmetric key.");
+                }
+            } catch (e) {
+                log("Decryption error: " + e.message);
+                AndroidBridge.handleError(e.message);
+            }
+        }
+
+        async function generatePeerKeyPair() {
+            try {
+                log("Generating Peer Web Crypto Key Pair...");
+                const keypair = await window.crypto.subtle.generateKey(
+                    {
+                        name: "RSA-OAEP",
+                        modulusLength: 2048,
+                        publicExponent: new Uint8Array([1, 0, 1]),
+                        hash: "SHA-256"
+                    },
+                    true,
+                    ["encrypt", "decrypt"]
+                );
+                log("Peer Web Crypto Keypair generated.");
+                const pubJwk = await window.crypto.subtle.exportKey("jwk", keypair.publicKey);
+                const privJwk = await window.crypto.subtle.exportKey("jwk", keypair.privateKey);
+                AndroidBridge.handlePeerKeyGenerated(JSON.stringify(pubJwk, null, 2), JSON.stringify(privJwk, null, 2));
+            } catch (e) {
+                log("Peer key generation failed: " + e.message);
+                AndroidBridge.handleError("Peer Key Gen Error: " + e.message);
+            }
+        }
+
+        async function encryptLocalMsg(publicKeyJwkJson, plaintext) {
+            try {
+                log("Importing Peer Public JWK...");
+                const pubJwk = JSON.parse(publicKeyJwkJson);
+                const publicKey = await window.crypto.subtle.importKey(
+                    "jwk",
+                    pubJwk,
+                    { name: "RSA-OAEP", hash: "SHA-256" },
+                    true,
+                    ["encrypt"]
+                );
+                log("Encrypting local message with RSA-OAEP...");
+                const encoder = new TextEncoder();
+                const data = encoder.encode(plaintext);
+                const encryptedBuffer = await window.crypto.subtle.encrypt(
+                    { name: "RSA-OAEP" },
+                    publicKey,
+                    data
+                );
+                const base64 = btoa(String.fromCharCode(...new Uint8Array(encryptedBuffer)));
+                log("Encryption complete.");
+                AndroidBridge.handleMsgEncrypted(base64);
+            } catch (e) {
+                log("Local encrypt failed: " + e.message);
+                AndroidBridge.handleError("Local Encrypt Error: " + e.message);
+            }
+        }
+
+        async function decryptIncomingMsg(privateKeyJwkJson, base64Ciphertext) {
+            try {
+                log("Importing Private JWK for decryption...");
+                const privJwk = JSON.parse(privateKeyJwkJson);
+                const privateKey = await window.crypto.subtle.importKey(
+                    "jwk",
+                    privJwk,
+                    { name: "RSA-OAEP", hash: "SHA-256" },
+                    true,
+                    ["decrypt"]
+                );
+                log("Decrypting RSA-OAEP ciphertext...");
+                const binaryDer = atob(base64Ciphertext);
+                const bytes = new Uint8Array(binaryDer.length);
+                for (let i = 0; i < binaryDer.length; i++) {
+                    bytes[i] = binaryDer.charCodeAt(i);
+                }
+                const decryptedBuffer = await window.crypto.subtle.decrypt(
+                    { name: "RSA-OAEP" },
+                    privateKey,
+                    bytes
+                );
+                const decoder = new TextDecoder();
+                const decryptedText = decoder.decode(decryptedBuffer);
+                log("Decryption complete.");
+                AndroidBridge.handleMsgDecrypted(decryptedText);
+            } catch (e) {
+                log("Local decrypt failed: " + e.message);
+                AndroidBridge.handleError("Local Decrypt Error: " + e.message);
+            }
+        }
+
+        async function encryptIncomingReply(myPublicKeyJwkJson, replyText) {
+            try {
+                log("Encrypting simulated peer reply...");
+                const pubJwk = JSON.parse(myPublicKeyJwkJson);
+                const publicKey = await window.crypto.subtle.importKey(
+                    "jwk",
+                    pubJwk,
+                    { name: "RSA-OAEP", hash: "SHA-256" },
+                    true,
+                    ["encrypt"]
+                );
+                const encoder = new TextEncoder();
+                const data = encoder.encode(replyText);
+                const encryptedBuffer = await window.crypto.subtle.encrypt(
+                    { name: "RSA-OAEP" },
+                    publicKey,
+                    data
+                );
+                const base64 = btoa(String.fromCharCode(...new Uint8Array(encryptedBuffer)));
+                log("Reply encryption complete.");
+                AndroidBridge.handleIncomingReplyEncrypted(base64);
+            } catch (e) {
+                log("Reply encryption failed: " + e.message);
+                AndroidBridge.handleError("Reply Encryption Error: " + e.message);
+            }
+        }
+        </script>
+        </head>
+        <body>
+        <div id="status">Web Crypto Engine Active</div>
+        </body>
+        </html>
+    """.trimIndent()
+
+    // Initialize background web engine
+    AndroidView(
+        factory = { ctx ->
+            WebView(ctx).apply {
+                settings.apply {
+                    javaScriptEnabled = true
+                    domStorageEnabled = true
+                }
+                addJavascriptInterface(
+                    WebCryptoBridge(
+                        onKeyGenerated = { pub, priv ->
+                            generatedPublicKey = pub
+                            generatedPrivateKey = priv
+                            isGeneratingKeys = false
+                            liveLogs.add("[SYSTEM] Secure key pair successfully generated!")
+                        },
+                        onEncrypted = { base64 ->
+                            encryptedCiphertext = base64
+                            decryptCiphertextInput = base64 // autofill
+                            isEncrypting = false
+                            liveLogs.add("[SYSTEM] Message encrypted successfully!")
+                        },
+                        onDecrypted = { plain ->
+                            decryptedPlaintextResult = plain
+                            isDecrypting = false
+                            liveLogs.add("[SYSTEM] Message decrypted successfully!")
+                        },
+                        onError = { err ->
+                            isGeneratingKeys = false
+                            isEncrypting = false
+                            isDecrypting = false
+                            isLocalMessagingEncrypting = false
+                            isPeerKeyGenerating = false
+                            liveLogs.add("[ERROR] JavaScript Error: $err")
+                        },
+                        onLog = { msg ->
+                            liveLogs.add("[ENGINE] $msg")
+                        },
+                        onPeerKeyGenerated = { pub, priv ->
+                            isPeerKeyGenerating = false
+                            selectedContactForMsg?.let { contact ->
+                                viewModel.importTrustedKey(
+                                    alias = contact.name,
+                                    i2pAddress = contact.address,
+                                    publicKeyBase64 = pub,
+                                    isVerified = true
+                                )
+                                peerPrivateKeys[contact.address] = priv
+                            }
+                            liveLogs.add("[SYSTEM] Test peer JWK key pair generated and associated successfully!")
+                        },
+                        onMsgEncrypted = { base64 ->
+                            locallyEncryptedPayload = base64
+                            isLocalMessagingEncrypting = false
+                            liveLogs.add("[SYSTEM] Local E2EE message encrypted successfully!")
+                        },
+                        onMsgDecrypted = { plain ->
+                            activeDecryptingId?.let { id ->
+                                decryptedMessages[id] = plain
+                            }
+                            activeDecryptingId = null
+                            liveLogs.add("[SYSTEM] Local E2EE message decrypted successfully!")
+                        },
+                        onIncomingReplyEncrypted = { base64 ->
+                            selectedContactForMsg?.let { contact ->
+                                val myAddress = viewModel.activeIdentity.value?.i2pAddress ?: "me.i2p"
+                                val incomingMsg = SecureMessage(
+                                    senderAddress = contact.address,
+                                    recipientAddress = myAddress,
+                                    encryptedPayload = base64,
+                                    isIncoming = true,
+                                    isDecrypted = false,
+                                    decryptedBody = null
+                                )
+                                viewModel.insertSecureMessage(incomingMsg)
+                                scope.launch {
+                                    viewModel.repository.addLog("CRYPT", "Incoming E2EE Garlic Clove received. Raw payload (Base64) contains Web Crypto RSA-OAEP ciphertext.", "INFO")
+                                }
+                            }
+                            liveLogs.add("[SYSTEM] Simulated incoming E2EE reply generated!")
+                        }
+                    ),
+                    "AndroidBridge"
+                )
+                loadDataWithBaseURL("https://localhost", htmlContent, "text/html", "UTF-8", null)
+                webViewRef = this
+            }
+        },
+        modifier = Modifier.size(1.dp) // Hidden but active in composition
+    )
+
+    fun runKeyGen() {
+        if (webViewRef == null) {
+            liveLogs.add("[ERROR] Web Crypto Engine is not ready.")
+            return
+        }
+        isGeneratingKeys = true
+        generatedPublicKey = ""
+        generatedPrivateKey = ""
+        liveLogs.clear()
+        liveLogs.add("[SYSTEM] Launching key generation...")
+        webViewRef?.post {
+            webViewRef?.evaluateJavascript(
+                "javascript:generateKeyPair('$selectedAlgorithm', '$selectedModulusLength', '$selectedHashAlgo', '$selectedCurve')",
+                null
+            )
+        }
+    }
+
+    fun runEncrypt() {
+        if (webViewRef == null) {
+            liveLogs.add("[ERROR] Web Crypto Engine is not ready.")
+            return
+        }
+        if (generatedPublicKey.isEmpty()) {
+            liveLogs.add("[ERROR] Please generate key pair first to populate public key.")
+            return
+        }
+        if (encryptPlaintext.isEmpty()) {
+            liveLogs.add("[ERROR] Plaintext to encrypt is empty.")
+            return
+        }
+        isEncrypting = true
+        encryptedCiphertext = ""
+        liveLogs.add("[SYSTEM] Initiating message encryption...")
+        val escapedJwk = generatedPublicKey.replace("'", "\\'")
+        val escapedPlaintext = encryptPlaintext.replace("'", "\\'").replace("\n", "\\n")
+        webViewRef?.post {
+            webViewRef?.evaluateJavascript(
+                "javascript:encryptMessage('$escapedJwk', '$escapedPlaintext', '$selectedAlgorithm', '$selectedHashAlgo', '$selectedCurve')",
+                null
+            )
+        }
+    }
+
+    fun runDecrypt() {
+        if (webViewRef == null) {
+            liveLogs.add("[ERROR] Web Crypto Engine is not ready.")
+            return
+        }
+        if (generatedPrivateKey.isEmpty()) {
+            liveLogs.add("[ERROR] Please generate key pair first to populate private key.")
+            return
+        }
+        if (decryptCiphertextInput.isEmpty()) {
+            liveLogs.add("[ERROR] Ciphertext input is empty.")
+            return
+        }
+        isDecrypting = true
+        decryptedPlaintextResult = ""
+        liveLogs.add("[SYSTEM] Initiating message decryption...")
+        val escapedJwk = generatedPrivateKey.replace("'", "\\'")
+        val escapedCiphertext = decryptCiphertextInput.replace("'", "\\'").replace("\n", "")
+        webViewRef?.post {
+            webViewRef?.evaluateJavascript(
+                "javascript:decryptMessage('$escapedJwk', '$escapedCiphertext', '$selectedAlgorithm', '$selectedHashAlgo', '$selectedCurve')",
+                null
+            )
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(CyberBlack)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Title block
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+            border = BorderStroke(1.dp, CyberBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VpnKey,
+                        contentDescription = "Web Crypto",
+                        tint = CyberGreen,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        "WEB CRYPTO API PLAYGROUND",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyberGreen,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    "Generate standard-compliant public & private cryptographic keys using the actual sandboxed Web Crypto API (SubtleCrypto) of the Android Web View engine. Securely encrypt messages to Base64 using RSA-OAEP, and decrypt them back live.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+        }
+
+        // Generator Config Card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+            border = BorderStroke(1.dp, CyberBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    "1. CONFIGURE CRYPTO PARAMS",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CyberBlue,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+
+                // Algorithm Selection Row
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Select Asymmetric Algorithm", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("RSA-OAEP", "ECDH").forEach { algo ->
+                            val isSelected = selectedAlgorithm == algo
+                            OutlinedButton(
+                                onClick = { selectedAlgorithm = algo },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("algo_select_$algo"),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (isSelected) CyberBlue.copy(alpha = 0.15f) else Color.Transparent,
+                                    contentColor = if (isSelected) CyberBlue else TextPrimary
+                                ),
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = if (isSelected) CyberBlue else CyberBorder
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(algo, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+
+                if (selectedAlgorithm == "RSA-OAEP") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Modulus Size
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Modulus Length (Bits)", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                listOf("1024", "2048", "4096").forEach { size ->
+                                    val isSelected = selectedModulusLength == size
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .background(
+                                                if (isSelected) CyberPurple.copy(alpha = 0.15f) else Color.Transparent,
+                                                RoundedCornerShape(4.dp)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                if (isSelected) CyberPurple else CyberBorder,
+                                                RoundedCornerShape(4.dp)
+                                            )
+                                            .clickable { selectedModulusLength = size }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(size, color = if (isSelected) CyberPurple else TextSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Hash algorithm
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Hash Function digest", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                listOf("SHA-256", "SHA-512").forEach { hash ->
+                                    val isSelected = selectedHashAlgo == hash
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .background(
+                                                if (isSelected) CyberOrange.copy(alpha = 0.15f) else Color.Transparent,
+                                                RoundedCornerShape(4.dp)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                if (isSelected) CyberOrange else CyberBorder,
+                                                RoundedCornerShape(4.dp)
+                                            )
+                                            .clickable { selectedHashAlgo = hash }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(hash, color = if (isSelected) CyberOrange else TextSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Elliptic curve selection
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Named Elliptic Curve", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf("P-256", "P-384", "P-521").forEach { curve ->
+                                val isSelected = selectedCurve == curve
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .background(
+                                            if (isSelected) CyberPurple.copy(alpha = 0.15f) else Color.Transparent,
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (isSelected) CyberPurple else CyberBorder,
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .clickable { selectedCurve = curve }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(curve, color = if (isSelected) CyberPurple else TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Trigger Button
+                Button(
+                    onClick = { runKeyGen() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("generate_keypair_button"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CyberGreen.copy(alpha = 0.15f),
+                        contentColor = CyberGreen
+                    ),
+                    border = BorderStroke(1.dp, CyberGreen),
+                    shape = RoundedCornerShape(8.dp),
+                    enabled = !isGeneratingKeys
+                ) {
+                    if (isGeneratingKeys) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = CyberGreen)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("COMPILING KEY PAIR...", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                    } else {
+                        Icon(imageVector = Icons.Default.Autorenew, contentDescription = "Generate", modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("EXECUTE WEB CRYPTO GENERATOR", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // JS Execution Monitor Card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+            border = BorderStroke(1.dp, CyberBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    "SUBTLE-CRYPTO RUNTIME ENGINE LOGS",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CyberYellow,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(110.dp)
+                        .background(CyberBlack, RoundedCornerShape(4.dp))
+                        .border(1.dp, CyberBorder, RoundedCornerShape(4.dp))
+                        .padding(8.dp)
+                ) {
+                    if (liveLogs.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Engine idle. Ready to execute cryptographic instructions.", fontSize = 10.sp, color = TextSecondary, fontFamily = FontFamily.Monospace)
+                        }
+                    } else {
+                        val scrollStateLocal = rememberScrollState()
+                        LaunchedEffect(liveLogs.size) {
+                            scrollStateLocal.animateScrollTo(scrollStateLocal.maxValue)
+                        }
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(scrollStateLocal),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            liveLogs.forEach { logLine ->
+                                val color = if (logLine.startsWith("[ERROR]")) CyberRed 
+                                            else if (logLine.startsWith("[SYSTEM]")) CyberGreen 
+                                            else if (logLine.startsWith("[ENGINE]")) CyberBlue 
+                                            else TextPrimary
+                                Text(
+                                    text = logLine,
+                                    fontSize = 8.sp,
+                                    color = color,
+                                    fontFamily = FontFamily.Monospace,
+                                    lineHeight = 11.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Export Keys Section
+        if (generatedPublicKey.isNotEmpty() || generatedPrivateKey.isNotEmpty()) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                border = BorderStroke(1.dp, CyberBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "EXPORTED KEYPAIR (JSON WEB KEY - JWK)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CyberPurple,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+
+                        // Key Type Selector
+                        Row(
+                            modifier = Modifier.background(CyberBlack, RoundedCornerShape(4.dp)).border(0.5.dp, CyberBorder, RoundedCornerShape(4.dp))
+                        ) {
+                            listOf("PUBLIC", "PRIVATE").forEach { type ->
+                                val isSelected = selectedKeyTab == type
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (isSelected) CyberPurple.copy(alpha = 0.2f) else Color.Transparent,
+                                            RoundedCornerShape(4.dp)
+                                        )
+                                        .clickable { selectedKeyTab = type }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        type, 
+                                        color = if (isSelected) CyberPurple else TextSecondary, 
+                                        fontSize = 8.sp, 
+                                        fontFamily = FontFamily.Monospace, 
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    val keyContent = if (selectedKeyTab == "PUBLIC") generatedPublicKey else generatedPrivateKey
+                    val copyTag = if (selectedKeyTab == "PUBLIC") "copy_public_jwk" else "copy_private_jwk"
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                            .background(CyberBlack, RoundedCornerShape(4.dp))
+                            .border(1.dp, CyberBorder, RoundedCornerShape(4.dp))
+                            .padding(8.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                                Text(
+                                    text = keyContent,
+                                    fontSize = 8.sp,
+                                    color = TextPrimary,
+                                    fontFamily = FontFamily.Monospace,
+                                    lineHeight = 11.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                Button(
+                                    onClick = {
+                                        clipboardManager.setText(AnnotatedString(keyContent))
+                                        android.widget.Toast.makeText(context, "$selectedKeyTab JWK Copied!", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                    modifier = Modifier.height(24.dp).testTag(copyTag),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = CyberPurple.copy(alpha = 0.15f),
+                                        contentColor = CyberPurple
+                                    ),
+                                    border = BorderStroke(0.5.dp, CyberPurple),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.ContentCopy, contentDescription = "Copy", modifier = Modifier.size(10.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("COPY JWK JSON", fontSize = 8.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Encryption Sandbox Card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+            border = BorderStroke(1.dp, CyberBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "2. SECURE MESSAGE ENCRYPTION SANDBOX",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CyberBlue,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+
+                if (selectedAlgorithm == "ECDH") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(CyberOrange.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                            .border(1.dp, CyberOrange.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                            .padding(10.dp)
+                    ) {
+                        Text(
+                            "ECDH (Elliptic Curve Diffie-Hellman) is a key agreement protocol used to derive a shared symmetric secret key, rather than direct payload encryption. Standard Web Crypto SubtleCrypto does not support direct encrypt/decrypt calls on ECDH key pairs. Please switch algorithm to RSA-OAEP above to run live payload encryption/decryption sandbox.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = CyberOrange,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp
+                        )
+                    }
+                } else {
+                    // Plaintext Input
+                    OutlinedTextField(
+                        value = encryptPlaintext,
+                        onValueChange = { encryptPlaintext = it },
+                        label = { Text("Plaintext secret message to encrypt", color = TextSecondary) },
+                        modifier = Modifier.fillMaxWidth().testTag("sandbox_plaintext_input"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberBlue,
+                            unfocusedBorderColor = CyberBorder
+                        ),
+                        textStyle = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.Monospace),
+                        maxLines = 2
+                    )
+
+                    Button(
+                        onClick = { runEncrypt() },
+                        modifier = Modifier.fillMaxWidth().height(36.dp).testTag("run_encryption_button"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = CyberBlue.copy(alpha = 0.15f),
+                            contentColor = CyberBlue
+                        ),
+                        border = BorderStroke(1.dp, CyberBlue),
+                        shape = RoundedCornerShape(6.dp),
+                        enabled = !isEncrypting && generatedPublicKey.isNotEmpty()
+                    ) {
+                        if (isEncrypting) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = CyberBlue)
+                        } else {
+                            Icon(imageVector = Icons.Default.Lock, contentDescription = "Encrypt", modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("RUN WEBCRYPTO ENCRYPTION (RSA-OAEP)", fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    if (encryptedCiphertext.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Asymmetric Ciphertext (Base64 Representation)", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(CyberBlack, RoundedCornerShape(4.dp))
+                                    .border(0.5.dp, CyberBorder, RoundedCornerShape(4.dp))
+                                    .padding(8.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = encryptedCiphertext,
+                                        color = CyberBlue,
+                                        fontSize = 9.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.weight(1f).testTag("sandbox_ciphertext_display"),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            clipboardManager.setText(AnnotatedString(encryptedCiphertext))
+                                            android.widget.Toast.makeText(context, "Ciphertext Copied!", android.widget.Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(imageVector = Icons.Default.ContentCopy, contentDescription = "Copy Cipher", tint = CyberBlue, modifier = Modifier.size(12.dp))
+                                    }
+                                }
+                            }
+                        }
+
+                        Divider(color = CyberBorder.copy(alpha = 0.4f), modifier = Modifier.padding(vertical = 4.dp))
+
+                        // Decryption Block
+                        OutlinedTextField(
+                            value = decryptCiphertextInput,
+                            onValueChange = { decryptCiphertextInput = it },
+                            label = { Text("Base64 Ciphertext to decrypt", color = TextSecondary) },
+                            modifier = Modifier.fillMaxWidth().testTag("sandbox_ciphertext_input"),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                focusedBorderColor = CyberPurple,
+                                unfocusedBorderColor = CyberBorder
+                            ),
+                            textStyle = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.Monospace),
+                            maxLines = 2
+                        )
+
+                        Button(
+                            onClick = { runDecrypt() },
+                            modifier = Modifier.fillMaxWidth().height(36.dp).testTag("run_decryption_button"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CyberPurple.copy(alpha = 0.15f),
+                                contentColor = CyberPurple
+                            ),
+                            border = BorderStroke(1.dp, CyberPurple),
+                            shape = RoundedCornerShape(6.dp),
+                            enabled = !isDecrypting && generatedPrivateKey.isNotEmpty()
+                        ) {
+                            if (isDecrypting) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = CyberPurple)
+                            } else {
+                                Icon(imageVector = Icons.Default.LockOpen, contentDescription = "Decrypt", modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("RUN WEBCRYPTO DECRYPTION (RSA-OAEP)", fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        if (decryptedPlaintextResult.isNotEmpty()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Decrypted Plaintext Output Message", style = MaterialTheme.typography.labelSmall, color = CyberGreen, fontWeight = FontWeight.Bold)
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(CyberGreen.copy(alpha = 0.05f), RoundedCornerShape(4.dp))
+                                        .border(1.dp, CyberGreen.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                                        .padding(10.dp)
+                                ) {
+                                    Text(
+                                        text = decryptedPlaintextResult,
+                                        color = CyberGreen,
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.fillMaxWidth().testTag("sandbox_decrypted_output")
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. SECURE LOCAL WEB-CRYPTO MESSAGING COMPONENT
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+            border = BorderStroke(1.dp, CyberBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "3. LOCAL E2EE WEB-CRYPTO MESSAGING COMPONENT",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CyberGreen,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+                
+                // Contact Selector
+                val contactsList by viewModel.contacts.collectAsState()
+                val trustedKeysList by viewModel.trustedKeys.collectAsState()
+                
+                // Sync selected contact initially
+                LaunchedEffect(contactsList) {
+                    if (selectedContactForMsg == null && contactsList.isNotEmpty()) {
+                        selectedContactForMsg = contactsList.firstOrNull()
+                    }
+                }
+                
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Select Recipient Contact", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { showContactDropdown = true },
+                            modifier = Modifier.fillMaxWidth().testTag("msg_contact_select_button"),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = CyberBlack,
+                                contentColor = TextPrimary
+                            ),
+                            border = BorderStroke(1.dp, CyberBorder),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = selectedContactForMsg?.let { "${it.name} (${it.address})" } ?: "Choose Contact",
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = if (selectedContactForMsg != null) CyberBlue else TextSecondary
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "Dropdown",
+                                    tint = TextSecondary
+                                )
+                            }
+                        }
+                        
+                        DropdownMenu(
+                            expanded = showContactDropdown,
+                            onDismissRequest = { showContactDropdown = false },
+                            modifier = Modifier.background(CyberDarkSurface).border(1.dp, CyberBorder)
+                        ) {
+                            contactsList.forEach { contact ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            "${contact.name} (${contact.address})",
+                                            color = TextPrimary,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 11.sp
+                                        )
+                                    },
+                                    onClick = {
+                                        selectedContactForMsg = contact
+                                        showContactDropdown = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                if (selectedContactForMsg != null) {
+                    val contact = selectedContactForMsg!!
+                    val contactKey = trustedKeysList.find { it.i2pAddress == contact.address }
+                    val hasJwk = contactKey != null && contactKey.publicKeyBase64.contains("\"kty\"")
+                    
+                    // Display Keyring Status
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(if (hasJwk) CyberGreen.copy(alpha = 0.08f) else CyberOrange.copy(alpha = 0.08f), RoundedCornerShape(6.dp))
+                            .border(1.dp, if (hasJwk) CyberGreen.copy(alpha = 0.3f) else CyberOrange.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (hasJwk) "🔒 WEB CRYPTO JWK ASSOCIATED" else "⚠️ NO ASSOCIATED JWK FOR PEER",
+                                fontSize = 9.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = if (hasJwk) CyberGreen else CyberOrange
+                            )
+                            Text(
+                                text = if (hasJwk) "JWK Fingerprint: ${contactKey?.publicKeyBase64?.take(36)}..." else "Asymmetric E2EE requires a Web Crypto JWK public key.",
+                                fontSize = 8.sp,
+                                fontFamily = FontFamily.Monospace,
+                                color = TextSecondary
+                            )
+                        }
+                        
+                        if (!hasJwk) {
+                            Button(
+                                onClick = {
+                                    isPeerKeyGenerating = true
+                                    webViewRef?.post {
+                                        webViewRef?.evaluateJavascript("javascript:generatePeerKeyPair()", null)
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.height(28.dp).testTag("gen_peer_jwk_button"),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = CyberOrange.copy(alpha = 0.15f),
+                                    contentColor = CyberOrange
+                                ),
+                                border = BorderStroke(1.dp, CyberOrange),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                if (isPeerKeyGenerating) {
+                                    CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp, color = CyberOrange)
+                                } else {
+                                    Text("AUTO-GEN JWK", fontSize = 9.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                    
+                    OutlinedTextField(
+                        value = localMsgPlaintext,
+                        onValueChange = { localMsgPlaintext = it },
+                        label = { Text("E2EE Message Plaintext", color = TextSecondary) },
+                        modifier = Modifier.fillMaxWidth().testTag("msg_plaintext_input"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CyberGreen,
+                            unfocusedBorderColor = CyberBorder
+                        ),
+                        textStyle = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.Monospace),
+                        maxLines = 2
+                    )
+                    
+                    // Action row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                if (contactKey != null) {
+                                    isLocalMessagingEncrypting = true
+                                    val escapedJwk = contactKey.publicKeyBase64.replace("'", "\\'")
+                                    val escapedPlaintext = localMsgPlaintext.replace("'", "\\'").replace("\n", "\\n")
+                                    webViewRef?.post {
+                                        webViewRef?.evaluateJavascript("javascript:encryptLocalMsg('$escapedJwk', '$escapedPlaintext')", null)
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f).height(38.dp).testTag("encrypt_msg_button"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CyberGreen.copy(alpha = 0.15f),
+                                contentColor = CyberGreen
+                            ),
+                            border = BorderStroke(1.dp, CyberGreen),
+                            shape = RoundedCornerShape(6.dp),
+                            enabled = hasJwk && localMsgPlaintext.isNotEmpty() && !isLocalMessagingEncrypting
+                        ) {
+                            if (isLocalMessagingEncrypting) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = CyberGreen)
+                            } else {
+                                Text("1. ENCRYPT LOCAL", fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        
+                        Button(
+                            onClick = {
+                                if (locallyEncryptedPayload.isNotEmpty()) {
+                                    scope.launch {
+                                        val myAddress = viewModel.activeIdentity.value?.i2pAddress ?: "me.i2p"
+                                        val secureMsg = SecureMessage(
+                                            senderAddress = myAddress,
+                                            recipientAddress = contact.address,
+                                            encryptedPayload = locallyEncryptedPayload,
+                                            isIncoming = false,
+                                            isDecrypted = false,
+                                            decryptedBody = null
+                                        )
+                                        viewModel.insertSecureMessage(secureMsg)
+                                        
+                                        // Clear input and ciphertext
+                                        localMsgPlaintext = ""
+                                        locallyEncryptedPayload = ""
+                                        
+                                        // Trigger a simulation reply
+                                        delay(1500)
+                                        if (generatedPublicKey.isNotEmpty()) {
+                                            val replyText = "Acknowledged secure payload. Local Web Crypto SubtleCrypto E2EE completed. Payload integrity verified."
+                                            val escapedMyPub = generatedPublicKey.replace("'", "\\'")
+                                            val escapedReply = replyText.replace("'", "\\'")
+                                            webViewRef?.post {
+                                                webViewRef?.evaluateJavascript("javascript:encryptIncomingReply('$escapedMyPub', '$escapedReply')", null)
+                                            }
+                                        } else {
+                                            viewModel.repository.addLog("CRYPT", "Peer cannot reply with encrypted message because you have not generated your key pair in Step 1.", "WARN")
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f).height(38.dp).testTag("send_msg_button"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CyberBlue.copy(alpha = 0.15f),
+                                contentColor = CyberBlue
+                            ),
+                            border = BorderStroke(1.dp, CyberBlue),
+                            shape = RoundedCornerShape(6.dp),
+                            enabled = locallyEncryptedPayload.isNotEmpty()
+                        ) {
+                            Text("2. DISPATCH E2EE", fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    
+                    if (locallyEncryptedPayload.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Local RSA-OAEP Ciphertext (Ready to send)", style = MaterialTheme.typography.labelSmall, color = CyberGreen)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(CyberBlack, RoundedCornerShape(4.dp))
+                                    .border(0.5.dp, CyberBorder, RoundedCornerShape(4.dp))
+                                    .padding(8.dp)
+                            ) {
+                                Text(
+                                    text = locallyEncryptedPayload,
+                                    color = CyberGreen,
+                                    fontSize = 8.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Filter messages with this contact
+                    val messagesList by viewModel.messages.collectAsState()
+                    val contactMessages = remember(messagesList, contact) {
+                        messagesList.filter { msg ->
+                            msg.senderAddress == contact.address || msg.recipientAddress == contact.address
+                        }.sortedByDescending { it.timestamp }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        "WEB-CRYPTO TUNNEL MESSAGES (${contactMessages.size})",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyberBlue,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .background(CyberBlack, RoundedCornerShape(6.dp))
+                            .border(1.dp, CyberBorder, RoundedCornerShape(6.dp))
+                            .padding(8.dp)
+                    ) {
+                        if (contactMessages.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("No Web Crypto E2EE packets in this stream.", fontSize = 10.sp, color = TextSecondary, fontFamily = FontFamily.Monospace)
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                items(contactMessages) { msg ->
+                                    val isMe = !msg.isIncoming
+                                    val bubbleBg = if (isMe) CyberBlue.copy(alpha = 0.08f) else CyberPurple.copy(alpha = 0.08f)
+                                    val bubbleBorder = if (isMe) CyberBlue.copy(alpha = 0.3f) else CyberPurple.copy(alpha = 0.3f)
+                                    val bubbleText = if (isMe) CyberBlue else CyberPurple
+                                    
+                                    val isDecryptedLocally = decryptedMessages.containsKey(msg.id)
+                                    val decryptedTextVal = decryptedMessages[msg.id]
+                                    
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = bubbleBg),
+                                        border = BorderStroke(1.dp, bubbleBorder),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = if (isMe) "OUTBOUND GARLIC MESSAGE" else "INBOUND GARLIC MESSAGE",
+                                                    fontSize = 8.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = bubbleText
+                                                )
+                                                Text(
+                                                    text = if (isDecryptedLocally || msg.isDecrypted) "🔓 PLAINTEXT" else "🔒 ENCRYPTED RSA-OAEP",
+                                                    fontSize = 8.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isDecryptedLocally || msg.isDecrypted) CyberGreen else CyberOrange
+                                                )
+                                            }
+                                            
+                                            if (isDecryptedLocally) {
+                                                Text(
+                                                    text = "Decrypted Plaintext: $decryptedTextVal",
+                                                    fontSize = 11.sp,
+                                                    color = CyberGreen,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            } else if (msg.isDecrypted && msg.decryptedBody != null) {
+                                                Text(
+                                                    text = msg.decryptedBody,
+                                                    fontSize = 11.sp,
+                                                    color = TextPrimary,
+                                                    fontFamily = FontFamily.Monospace
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = "Ciphertext: ${msg.encryptedPayload}",
+                                                    fontSize = 8.sp,
+                                                    color = TextSecondary,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                
+                                                if (!isMe) {
+                                                    Button(
+                                                        onClick = {
+                                                            if (generatedPrivateKey.isNotEmpty()) {
+                                                                activeDecryptingId = msg.id
+                                                                val escapedJwk = generatedPrivateKey.replace("'", "\\'")
+                                                                val escapedCiphertext = msg.encryptedPayload.replace("'", "\\'")
+                                                                webViewRef?.post {
+                                                                    webViewRef?.evaluateJavascript("javascript:decryptIncomingMsg('$escapedJwk', '$escapedCiphertext')", null)
+                                                                }
+                                                            } else {
+                                                                android.widget.Toast.makeText(context, "Please generate your key pair in Step 1 first!", android.widget.Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        },
+                                                        contentPadding = PaddingValues(horizontal = 6.dp),
+                                                        modifier = Modifier.height(22.dp).align(Alignment.End),
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = CyberPurple.copy(alpha = 0.15f),
+                                                            contentColor = CyberPurple
+                                                        ),
+                                                        border = BorderStroke(0.5.dp, CyberPurple),
+                                                        shape = RoundedCornerShape(4.dp)
+                                                    ) {
+                                                        Text("DECRYPT WITH MY PRIVATE KEY", fontSize = 7.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                                    }
+                                                } else {
+                                                    val peerPrivateKey = peerPrivateKeys[contact.address]
+                                                    if (peerPrivateKey != null) {
+                                                        Button(
+                                                            onClick = {
+                                                                activeDecryptingId = msg.id
+                                                                val escapedJwk = peerPrivateKey.replace("'", "\\'")
+                                                                val escapedCiphertext = msg.encryptedPayload.replace("'", "\\'")
+                                                                webViewRef?.post {
+                                                                    webViewRef?.evaluateJavascript("javascript:decryptIncomingMsg('$escapedJwk', '$escapedCiphertext')", null)
+                                                                }
+                                                            },
+                                                            contentPadding = PaddingValues(horizontal = 6.dp),
+                                                            modifier = Modifier.height(22.dp).align(Alignment.End),
+                                                            colors = ButtonDefaults.buttonColors(
+                                                                containerColor = CyberGreen.copy(alpha = 0.15f),
+                                                                contentColor = CyberGreen
+                                                            ),
+                                                            border = BorderStroke(0.5.dp, CyberGreen),
+                                                            shape = RoundedCornerShape(4.dp)
+                                                        ) {
+                                                            Text("DECRYPT AS PEER", fontSize = 7.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
